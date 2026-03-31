@@ -7,6 +7,9 @@ interface Env {
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
   FRONTEND_URL: string;
+  CLOUDINARY_CLOUD_NAME: string;
+  CLOUDINARY_API_KEY: string;
+  CLOUDINARY_API_SECRET: string;
 }
 
 // helper function (env validation)
@@ -25,4 +28,7 @@ export const env: Env = {
   BETTER_AUTH_SECRET: requireEnv("BETTER_AUTH_SECRET"),
   BETTER_AUTH_URL: requireEnv("BETTER_AUTH_URL"),
   FRONTEND_URL: requireEnv("FRONTEND_URL"),
+  CLOUDINARY_CLOUD_NAME: requireEnv("CLOUDINARY_CLOUD_NAME"),
+  CLOUDINARY_API_KEY: requireEnv("CLOUDINARY_API_KEY"),
+  CLOUDINARY_API_SECRET: requireEnv("CLOUDINARY_API_SECRET"),
 };
