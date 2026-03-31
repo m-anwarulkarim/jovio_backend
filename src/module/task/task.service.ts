@@ -1,5 +1,4 @@
 import type { Request } from "express";
-import { fromNodeHeaders } from "better-auth/node";
 import {
   Prisma,
   TaskPriority,
@@ -7,9 +6,15 @@ import {
   UserRole,
 } from "../../../generated/prisma/client";
 
-import { auth } from "../../lib/auth";
 import { prisma } from "../../lib/prisma";
 import AppError from "../../utils/AppError";
+import getAuthUser from "../../utils/getAuthUser";
+import {
+  ensureCompanyOwner,
+  ensureDepartmentBelongsToCompany,
+  ensureTaskAccess,
+  getOwnerCompany,
+} from "../../utils/accessControl";
 
 import type {
   TCreateTaskPayload,
@@ -18,63 +23,10 @@ import type {
   TUpdateTaskPayload,
 } from "./task.types";
 
-const getAuthUser = async (req: Request) => {
-  const session = await auth.api.getSession({
-    headers: fromNodeHeaders(req.headers),
-  });
-
-  if (!session?.user?.id) {
-    throw new AppError(401, "Unauthorized");
-  }
-
-  const dbUser = await prisma.user.findUnique({
-    where: {
-      id: session.user.id,
-    },
-    select: {
-      id: true,
-      role: true,
-      companyId: true,
-      ownedCompany: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
-  });
-
-  if (!dbUser) {
-    throw new AppError(404, "User not found");
-  }
-
-  return dbUser;
-};
-
-const getOwnerCompany = async (ownerId: string) => {
-  const company = await prisma.company.findUnique({
-    where: {
-      ownerId,
-    },
-    select: {
-      id: true,
-      name: true,
-    },
-  });
-
-  if (!company) {
-    throw new AppError(404, "Company not found");
-  }
-
-  return company;
-};
-
 const createTask = async (req: Request, payload: TCreateTaskPayload) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(403, "Only company owners can create tasks");
-  }
+  ensureCompanyOwner(authUser);
 
   const company = await getOwnerCompany(authUser.id);
 
@@ -100,19 +52,7 @@ const createTask = async (req: Request, payload: TCreateTaskPayload) => {
   }
 
   if (payload.departmentId) {
-    const department = await prisma.department.findFirst({
-      where: {
-        id: payload.departmentId,
-        companyId: company.id,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!department) {
-      throw new AppError(404, "Department not found in your company");
-    }
+    await ensureDepartmentBelongsToCompany(payload.departmentId, company.id);
   }
 
   const task = await prisma.task.create({
@@ -240,9 +180,8 @@ const getAllTasks = async (req: Request, query: TGetTasksQuery) => {
     });
   }
 
-  const whereConditions: Prisma.TaskWhereInput = {
-    AND: andConditions,
-  };
+  const whereConditions: Prisma.TaskWhereInput =
+    andConditions.length > 0 ? { AND: andConditions } : {};
 
   const tasks = await prisma.task.findMany({
     where: whereConditions,
@@ -284,12 +223,6 @@ const getAllTasks = async (req: Request, query: TGetTasksQuery) => {
           name: true,
         },
       },
-      _count: {
-        select: {
-          comments: true,
-          attachments: true,
-        },
-      },
     },
   });
 
@@ -310,25 +243,12 @@ const getAllTasks = async (req: Request, query: TGetTasksQuery) => {
 const getSingleTask = async (req: Request, taskId: string) => {
   const authUser = await getAuthUser(req);
 
-  let taskWhere: Prisma.TaskWhereInput;
-
-  if (authUser.role === UserRole.COMPANY_OWNER) {
-    const company = await getOwnerCompany(authUser.id);
-    taskWhere = {
-      id: taskId,
-      companyId: company.id,
-    };
-  } else if (authUser.role === UserRole.EMPLOYEE) {
-    taskWhere = {
-      id: taskId,
-      assignedToId: authUser.id,
-    };
-  } else {
-    throw new AppError(403, "You are not allowed to view task details");
-  }
+  await ensureTaskAccess(authUser, taskId);
 
   const task = await prisma.task.findFirst({
-    where: taskWhere,
+    where: {
+      id: taskId,
+    },
     select: {
       id: true,
       title: true,
@@ -419,27 +339,11 @@ const updateTask = async (
 ) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(403, "Only company owners can update tasks");
-  }
+  ensureCompanyOwner(authUser);
 
   const company = await getOwnerCompany(authUser.id);
 
-  const task = await prisma.task.findFirst({
-    where: {
-      id: taskId,
-      companyId: company.id,
-    },
-    select: {
-      id: true,
-      assignedToId: true,
-      status: true,
-    },
-  });
-
-  if (!task) {
-    throw new AppError(404, "Task not found");
-  }
+  const task = await ensureTaskAccess(authUser, taskId);
 
   if (payload.assignedToId) {
     const assignee = await prisma.user.findFirst({
@@ -463,19 +367,7 @@ const updateTask = async (
   }
 
   if (payload.departmentId) {
-    const department = await prisma.department.findFirst({
-      where: {
-        id: payload.departmentId,
-        companyId: company.id,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!department) {
-      throw new AppError(404, "Department not found in your company");
-    }
+    await ensureDepartmentBelongsToCompany(payload.departmentId, company.id);
   }
 
   const nextStatus = payload.status
@@ -567,32 +459,13 @@ const updateMyTaskStatus = async (
     throw new AppError(403, "You are not allowed to update task status");
   }
 
-  let taskWhere: Prisma.TaskWhereInput;
+  const task = await ensureTaskAccess(authUser, taskId);
 
-  if (authUser.role === UserRole.COMPANY_OWNER) {
-    const company = await getOwnerCompany(authUser.id);
-    taskWhere = {
-      id: taskId,
-      companyId: company.id,
-      assignedToId: authUser.id,
-    };
-  } else {
-    taskWhere = {
-      id: taskId,
-      assignedToId: authUser.id,
-    };
-  }
-
-  const task = await prisma.task.findFirst({
-    where: taskWhere,
-    select: {
-      id: true,
-      status: true,
-    },
-  });
-
-  if (!task) {
-    throw new AppError(404, "Task not found or not assigned to you");
+  if (
+    authUser.role === UserRole.COMPANY_OWNER &&
+    task.assignedToId !== authUser.id
+  ) {
+    throw new AppError(403, "Task is not assigned to you");
   }
 
   const nextStatus = payload.status as TaskStatus;
@@ -653,25 +526,9 @@ const updateMyTaskStatus = async (
 const deleteTask = async (req: Request, taskId: string) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(403, "Only company owners can delete tasks");
-  }
+  ensureCompanyOwner(authUser);
 
-  const company = await getOwnerCompany(authUser.id);
-
-  const task = await prisma.task.findFirst({
-    where: {
-      id: taskId,
-      companyId: company.id,
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (!task) {
-    throw new AppError(404, "Task not found");
-  }
+  const task = await ensureTaskAccess(authUser, taskId);
 
   await prisma.task.delete({
     where: {

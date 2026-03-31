@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import { env } from "./config";
 import globalErrorHandler from "./middlewares/globalErrorHandler";
-import notFound from "./middlewares/npt-found";
+import notFound from "./middlewares/notFound";
 import router from "./routes";
 
 const app = express();

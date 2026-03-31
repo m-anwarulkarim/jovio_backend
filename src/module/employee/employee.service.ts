@@ -1,10 +1,14 @@
 import type { Request } from "express";
-import { fromNodeHeaders } from "better-auth/node";
 import { Prisma, UserRole } from "../../../generated/prisma/client";
-
 import { auth } from "../../lib/auth";
 import { prisma } from "../../lib/prisma";
 import AppError from "../../utils/AppError";
+import getAuthUser from "../../utils/getAuthUser";
+import {
+  ensureCompanyOwner,
+  ensureDepartmentBelongsToCompany,
+  getOwnerCompany,
+} from "../../utils/accessControl";
 
 import type {
   TConvertExistingUserToEmployeePayload,
@@ -13,66 +17,13 @@ import type {
   TUpdateEmployeePayload,
 } from "./employee.types";
 
-const getAuthUser = async (req: Request) => {
-  const session = await auth.api.getSession({
-    headers: fromNodeHeaders(req.headers),
-  });
-
-  if (!session?.user?.id) {
-    throw new AppError(401, "Unauthorized");
-  }
-
-  const dbUser = await prisma.user.findUnique({
-    where: {
-      id: session.user.id,
-    },
-    select: {
-      id: true,
-      role: true,
-      companyId: true,
-      ownedCompany: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
-  });
-
-  if (!dbUser) {
-    throw new AppError(404, "User not found");
-  }
-
-  return dbUser;
-};
-
-const getOwnerCompany = async (ownerId: string) => {
-  const company = await prisma.company.findUnique({
-    where: {
-      ownerId,
-    },
-    select: {
-      id: true,
-      name: true,
-    },
-  });
-
-  if (!company) {
-    throw new AppError(404, "Company not found");
-  }
-
-  return company;
-};
-
 const createEmployee = async (
   req: Request,
   payload: TCreateEmployeePayload,
 ) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(403, "Only company owners can create employees");
-  }
+  ensureCompanyOwner(authUser);
 
   const company = await getOwnerCompany(authUser.id);
 
@@ -105,19 +56,7 @@ const createEmployee = async (
   }
 
   if (payload.departmentId) {
-    const department = await prisma.department.findFirst({
-      where: {
-        id: payload.departmentId,
-        companyId: company.id,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!department) {
-      throw new AppError(404, "Department not found in your company");
-    }
+    await ensureDepartmentBelongsToCompany(payload.departmentId, company.id);
   }
 
   await auth.api.signUpEmail({
@@ -169,9 +108,7 @@ const createEmployee = async (
 const getCompanyEmployees = async (req: Request, query: TGetEmployeesQuery) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(403, "Only company owners can view employees");
-  }
+  ensureCompanyOwner(authUser);
 
   const company = await getOwnerCompany(authUser.id);
 
@@ -284,9 +221,7 @@ const getCompanyEmployees = async (req: Request, query: TGetEmployeesQuery) => {
 const getSingleEmployee = async (req: Request, employeeId: string) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(403, "Only company owners can view employee details");
-  }
+  ensureCompanyOwner(authUser);
 
   const company = await getOwnerCompany(authUser.id);
 
@@ -315,11 +250,22 @@ const getSingleEmployee = async (req: Request, employeeId: string) => {
           name: true,
         },
       },
+      assignedTasks: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          priority: true,
+          deadline: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 10,
+      },
       _count: {
         select: {
           assignedTasks: true,
-          taskComments: true,
-          taskFiles: true,
         },
       },
     },
@@ -339,9 +285,7 @@ const updateEmployee = async (
 ) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(403, "Only company owners can update employees");
-  }
+  ensureCompanyOwner(authUser);
 
   const company = await getOwnerCompany(authUser.id);
 
@@ -381,19 +325,7 @@ const updateEmployee = async (
   }
 
   if (payload.departmentId) {
-    const department = await prisma.department.findFirst({
-      where: {
-        id: payload.departmentId,
-        companyId: company.id,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!department) {
-      throw new AppError(404, "Department not found in your company");
-    }
+    await ensureDepartmentBelongsToCompany(payload.departmentId, company.id);
   }
 
   const updatedEmployee = await prisma.user.update({
@@ -436,9 +368,7 @@ const updateEmployee = async (
 const deactivateEmployee = async (req: Request, employeeId: string) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(403, "Only company owners can deactivate employees");
-  }
+  ensureCompanyOwner(authUser);
 
   const company = await getOwnerCompany(authUser.id);
 
@@ -474,18 +404,14 @@ const deactivateEmployee = async (req: Request, employeeId: string) => {
     },
   });
 };
+
 const convertExistingUserToEmployee = async (
   req: Request,
   payload: TConvertExistingUserToEmployeePayload,
 ) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(
-      403,
-      "Only company owners can convert users to employees",
-    );
-  }
+  ensureCompanyOwner(authUser);
 
   const company = await getOwnerCompany(authUser.id);
 
@@ -526,19 +452,7 @@ const convertExistingUserToEmployee = async (
   }
 
   if (payload.departmentId) {
-    const department = await prisma.department.findFirst({
-      where: {
-        id: payload.departmentId,
-        companyId: company.id,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!department) {
-      throw new AppError(404, "Department not found in your company");
-    }
+    await ensureDepartmentBelongsToCompany(payload.departmentId, company.id);
   }
 
   const updatedEmployee = await prisma.user.update({

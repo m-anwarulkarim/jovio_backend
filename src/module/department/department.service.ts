@@ -1,10 +1,10 @@
 import type { Request } from "express";
-import { fromNodeHeaders } from "better-auth/node";
 import { Prisma, UserRole } from "../../../generated/prisma/client";
 
-import { auth } from "../../lib/auth";
 import { prisma } from "../../lib/prisma";
 import AppError from "../../utils/AppError";
+import getAuthUser from "../../utils/getAuthUser";
+import { ensureCompanyOwner, getOwnerCompany } from "../../utils/accessControl";
 
 import type {
   TCreateDepartmentPayload,
@@ -12,66 +12,13 @@ import type {
   TUpdateDepartmentPayload,
 } from "./department.types";
 
-const getAuthUser = async (req: Request) => {
-  const session = await auth.api.getSession({
-    headers: fromNodeHeaders(req.headers),
-  });
-
-  if (!session?.user?.id) {
-    throw new AppError(401, "Unauthorized");
-  }
-
-  const dbUser = await prisma.user.findUnique({
-    where: {
-      id: session.user.id,
-    },
-    select: {
-      id: true,
-      role: true,
-      companyId: true,
-      ownedCompany: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
-  });
-
-  if (!dbUser) {
-    throw new AppError(404, "User not found");
-  }
-
-  return dbUser;
-};
-
-const getOwnerCompany = async (ownerId: string) => {
-  const company = await prisma.company.findUnique({
-    where: {
-      ownerId,
-    },
-    select: {
-      id: true,
-      name: true,
-    },
-  });
-
-  if (!company) {
-    throw new AppError(404, "Company not found");
-  }
-
-  return company;
-};
-
 const createDepartment = async (
   req: Request,
   payload: TCreateDepartmentPayload,
 ) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(403, "Only company owners can create departments");
-  }
+  ensureCompanyOwner(authUser);
 
   const company = await getOwnerCompany(authUser.id);
 
@@ -109,9 +56,7 @@ const createDepartment = async (
 const getAllDepartments = async (req: Request, query: TGetDepartmentsQuery) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(403, "Only company owners can view departments");
-  }
+  ensureCompanyOwner(authUser);
 
   const company = await getOwnerCompany(authUser.id);
 
@@ -178,9 +123,7 @@ const getAllDepartments = async (req: Request, query: TGetDepartmentsQuery) => {
 const getSingleDepartment = async (req: Request, departmentId: string) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(403, "Only company owners can view department details");
-  }
+  ensureCompanyOwner(authUser);
 
   const company = await getOwnerCompany(authUser.id);
 
@@ -200,6 +143,7 @@ const getSingleDepartment = async (req: Request, departmentId: string) => {
           id: true,
           name: true,
           email: true,
+          phone: true,
           role: true,
           isActive: true,
         },
@@ -249,9 +193,7 @@ const updateDepartment = async (
 ) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(403, "Only company owners can update departments");
-  }
+  ensureCompanyOwner(authUser);
 
   const company = await getOwnerCompany(authUser.id);
 
@@ -311,9 +253,7 @@ const updateDepartment = async (
 const deleteDepartment = async (req: Request, departmentId: string) => {
   const authUser = await getAuthUser(req);
 
-  if (authUser.role !== UserRole.COMPANY_OWNER) {
-    throw new AppError(403, "Only company owners can delete departments");
-  }
+  ensureCompanyOwner(authUser);
 
   const company = await getOwnerCompany(authUser.id);
 

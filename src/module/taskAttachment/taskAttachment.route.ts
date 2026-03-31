@@ -6,20 +6,16 @@ import { TaskAttachmentController } from "./taskAttachment.controller";
 const router = Router();
 
 router.post(
-  "/tasks/:taskId/attachments",
+  "/:taskId",
   requireAuth,
   upload.single("file"),
   TaskAttachmentController.uploadAttachment,
 );
 
-router.get(
-  "/tasks/:taskId/attachments",
-  requireAuth,
-  TaskAttachmentController.getAttachments,
-);
+router.get("/:taskId", requireAuth, TaskAttachmentController.getAttachments);
 
 router.delete(
-  "/attachments/:attachmentId",
+  "/attachment/:attachmentId",
   requireAuth,
   TaskAttachmentController.deleteAttachment,
 );

@@ -1,20 +1,29 @@
-# API Documentation
+অবশ্যই — নিচে তোমার **final route + request + response** একদম cleanভাবে দিলাম, **তোমার latest updated route structure অনুযায়ী**।
+
+**Base URL**
+
+```bash
+/api/v1
+```
+
+---
 
 # 1) Auth Routes
 
-## `POST /auth/register`
+## `POST /api/v1/auth/register`
 
-### Request body
+**Request body**
 
 ```json
 {
   "name": "Anwarul Karim",
   "email": "anwarul@example.com",
-  "password": "12345678"
+  "password": "12345678",
+  "image": "https://example.com/avatar.png"
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -28,18 +37,19 @@
 
 ---
 
-## `POST /auth/login`
+## `POST /api/v1/auth/login`
 
-### Request body
+**Request body**
 
 ```json
 {
   "email": "anwarul@example.com",
-  "password": "12345678"
+  "password": "12345678",
+  "rememberMe": true
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -53,13 +63,12 @@
 
 ---
 
-## `POST /auth/logout`
+## `POST /api/v1/auth/logout`
 
-### Request body
+**Request**
+কিছু লাগবে না, শুধু logged in session লাগবে
 
-কিছু লাগবে না
-
-### Response
+**Response**
 
 ```json
 {
@@ -71,13 +80,12 @@
 
 ---
 
-## `GET /auth/me`
+## `GET /api/v1/auth/me`
 
-### Request
+**Request**
+কিছু লাগবে না, শুধু logged in session লাগবে
 
-কিছু লাগবে না, শুধু login session লাগবে
-
-### Response
+**Response**
 
 ```json
 {
@@ -96,9 +104,9 @@
 
 ---
 
-## `POST /auth/change-password`
+## `POST /api/v1/auth/change-password`
 
-### Request body
+**Request body**
 
 ```json
 {
@@ -107,7 +115,7 @@
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -119,15 +127,17 @@
 
 ---
 
-## `GET /auth/all`
+## `GET /api/v1/auth/all`
 
-### Request query
+**Access:** `ADMIN`
+
+**Query**
 
 ```http
 /auth/all?page=1&limit=10&searchTerm=anwar&role=EMPLOYEE
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -145,7 +155,15 @@
       "email": "rahim@example.com",
       "phone": "01700000000",
       "role": "EMPLOYEE",
-      "isActive": true
+      "avatar": null,
+      "bio": null,
+      "isActive": true,
+      "createdAt": "2026-03-31T00:00:00.000Z",
+      "updatedAt": "2026-03-31T00:00:00.000Z",
+      "department": {
+        "id": "department_id",
+        "name": "Development"
+      }
     }
   ]
 }
@@ -155,9 +173,9 @@
 
 # 2) Company Routes
 
-## `POST /companies`
+## `POST /api/v1/companies`
 
-### Request body
+**Request body**
 
 ```json
 {
@@ -169,7 +187,7 @@
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -183,20 +201,22 @@
     "logo": "https://example.com/logo.png",
     "website": "https://abtech.com",
     "isActive": true,
-    "isVerified": false
+    "isVerified": false,
+    "ownerId": "user_id",
+    "createdAt": "2026-03-31T00:00:00.000Z",
+    "updatedAt": "2026-03-31T00:00:00.000Z"
   }
 }
 ```
 
 ---
 
-## `GET /companies/my-company`
+## `GET /api/v1/companies/my-company`
 
-### Request
+**Request**
+শুধু logged in session
 
-কিছু লাগবে না
-
-### Response
+**Response**
 
 ```json
 {
@@ -207,11 +227,22 @@
     "name": "AB Tech",
     "slug": "ab-tech",
     "description": "Software company",
+    "logo": "https://example.com/logo.png",
+    "website": "https://abtech.com",
     "isActive": true,
     "isVerified": false,
     "owner": {
       "id": "user_id",
-      "name": "Anwarul"
+      "name": "Anwarul",
+      "email": "anwarul@example.com",
+      "role": "COMPANY_OWNER"
+    },
+    "_count": {
+      "members": 5,
+      "departments": 2,
+      "tasks": 10,
+      "proposals": 0,
+      "orders": 0
     }
   }
 }
@@ -219,18 +250,23 @@
 
 ---
 
-## `PATCH /companies/my-company`
+## `PATCH /api/v1/companies/my-company`
 
-### Request body
+**Access:** `COMPANY_OWNER`
+
+**Request body**
 
 ```json
 {
   "name": "AB Tech Ltd",
-  "description": "Updated description"
+  "slug": "ab-tech-ltd",
+  "description": "Updated description",
+  "logo": "https://example.com/new-logo.png",
+  "website": "https://abtechltd.com"
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -239,23 +275,30 @@
   "data": {
     "id": "company_id",
     "name": "AB Tech Ltd",
-    "slug": "ab-tech",
-    "description": "Updated description"
+    "slug": "ab-tech-ltd",
+    "description": "Updated description",
+    "logo": "https://example.com/new-logo.png",
+    "website": "https://abtechltd.com",
+    "isActive": true,
+    "isVerified": false,
+    "ownerId": "user_id",
+    "createdAt": "2026-03-31T00:00:00.000Z",
+    "updatedAt": "2026-03-31T01:00:00.000Z"
   }
 }
 ```
 
 ---
 
-## `GET /companies`
+## `GET /api/v1/companies`
 
-### Request query
+**Query**
 
 ```http
 /companies?page=1&limit=10&searchTerm=ab&isVerified=true&isActive=true
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -271,8 +314,21 @@
       "id": "company_id",
       "name": "AB Tech",
       "slug": "ab-tech",
+      "description": "Software company",
+      "logo": "https://example.com/logo.png",
+      "website": "https://abtech.com",
       "isActive": true,
-      "isVerified": true
+      "isVerified": true,
+      "owner": {
+        "id": "user_id",
+        "name": "Owner Name",
+        "email": "owner@example.com"
+      },
+      "_count": {
+        "members": 10,
+        "orders": 0,
+        "proposals": 0
+      }
     }
   ]
 }
@@ -280,15 +336,15 @@
 
 ---
 
-## `GET /companies/:slugOrId`
+## `GET /api/v1/companies/:slugOrId`
 
-### Example
+**Example**
 
 ```http
 /companies/ab-tech
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -298,16 +354,22 @@
     "id": "company_id",
     "name": "AB Tech",
     "slug": "ab-tech",
-    "description": "Software company"
+    "description": "Software company",
+    "logo": "https://example.com/logo.png",
+    "website": "https://abtech.com",
+    "isActive": true,
+    "isVerified": true
   }
 }
 ```
 
 ---
 
-## `PATCH /companies/:companyId/verify`
+## `PATCH /api/v1/companies/:companyId/verify`
 
-### Request body
+**Access:** `ADMIN`
+
+**Request body**
 
 ```json
 {
@@ -315,7 +377,7 @@
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -330,9 +392,11 @@
 
 ---
 
-## `PATCH /companies/:companyId/status`
+## `PATCH /api/v1/companies/:companyId/status`
 
-### Request body
+**Access:** `ADMIN`
+
+**Request body**
 
 ```json
 {
@@ -340,7 +404,7 @@
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -355,11 +419,124 @@
 
 ---
 
-# 3) Employee Routes
+# 3) Dashboard Route
 
-## `POST /employees`
+## `GET /api/v1/dashboard/stats`
 
-### Request body
+**Access:** logged in user
+
+**Request**
+কিছু লাগবে না, শুধু session লাগবে
+
+**Response (ADMIN)**
+
+```json
+{
+  "success": true,
+  "message": "Dashboard stats retrieved successfully",
+  "data": {
+    "scope": "ADMIN",
+    "overview": {
+      "totalUsers": 20,
+      "totalCompanies": 5,
+      "activeCompanies": 4,
+      "verifiedCompanies": 3,
+      "totalEmployees": 10,
+      "totalCompanyOwners": 5,
+      "totalTasks": 50
+    },
+    "tasks": {
+      "pending": 10,
+      "inProgress": 12,
+      "review": 5,
+      "completed": 20,
+      "cancelled": 3,
+      "overdue": 2,
+      "dueToday": 4,
+      "urgent": 6,
+      "highPriority": 9
+    },
+    "recentCompanies": [],
+    "recentTasks": []
+  }
+}
+```
+
+**Response (COMPANY_OWNER)**
+
+```json
+{
+  "success": true,
+  "message": "Dashboard stats retrieved successfully",
+  "data": {
+    "scope": "COMPANY_OWNER",
+    "company": {
+      "id": "company_id",
+      "name": "AB Tech",
+      "slug": "ab-tech",
+      "isActive": true,
+      "isVerified": false
+    },
+    "overview": {
+      "totalEmployees": 8,
+      "activeEmployees": 7,
+      "inactiveEmployees": 1,
+      "totalDepartments": 3,
+      "totalTasks": 18
+    },
+    "tasks": {
+      "pending": 4,
+      "inProgress": 5,
+      "onHold": 2,
+      "review": 1,
+      "completed": 5,
+      "cancelled": 1,
+      "overdue": 2,
+      "dueToday": 3,
+      "urgent": 2,
+      "highPriority": 4
+    },
+    "recentEmployees": [],
+    "recentTasks": []
+  }
+}
+```
+
+**Response (EMPLOYEE)**
+
+```json
+{
+  "success": true,
+  "message": "Dashboard stats retrieved successfully",
+  "data": {
+    "scope": "EMPLOYEE",
+    "overview": {
+      "totalTasks": 10,
+      "pendingTasks": 2,
+      "inProgressTasks": 3,
+      "onHoldTasks": 1,
+      "reviewTasks": 1,
+      "completedTasks": 2,
+      "cancelledTasks": 1,
+      "overdueTasks": 1,
+      "dueTodayTasks": 2,
+      "urgentTasks": 1,
+      "highPriorityTasks": 2
+    },
+    "recentTasks": []
+  }
+}
+```
+
+---
+
+# 4) Employee Routes
+
+## `POST /api/v1/employees`
+
+**Access:** `COMPANY_OWNER`
+
+**Request body**
 
 ```json
 {
@@ -373,7 +550,7 @@
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -383,19 +560,28 @@
     "id": "employee_id",
     "name": "Rahim Uddin",
     "email": "rahim@example.com",
+    "phone": "01700000000",
     "role": "EMPLOYEE",
+    "image": "https://example.com/rahim.png",
+    "bio": "Frontend developer",
+    "isActive": true,
     "companyId": "company_id",
     "departmentId": "department_id",
-    "isActive": true
+    "department": {
+      "id": "department_id",
+      "name": "Development"
+    }
   }
 }
 ```
 
 ---
 
-## `PATCH /employees/convert-existing`
+## `PATCH /api/v1/employees/convert-existing`
 
-### Request body
+**Access:** `COMPANY_OWNER`
+
+**Request body**
 
 ```json
 {
@@ -404,7 +590,7 @@
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -415,22 +601,26 @@
     "name": "Old User",
     "email": "olduser@example.com",
     "role": "EMPLOYEE",
-    "companyId": "company_id"
+    "companyId": "company_id",
+    "departmentId": "department_id",
+    "isActive": true
   }
 }
 ```
 
 ---
 
-## `GET /employees`
+## `GET /api/v1/employees`
 
-### Request query
+**Access:** `COMPANY_OWNER`
+
+**Query**
 
 ```http
 /employees?page=1&limit=10&searchTerm=rahim&departmentId=department_id&isActive=true
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -446,8 +636,17 @@
       "id": "employee_id",
       "name": "Rahim Uddin",
       "email": "rahim@example.com",
+      "phone": "01700000000",
       "role": "EMPLOYEE",
-      "isActive": true
+      "image": "https://example.com/rahim.png",
+      "bio": "Frontend developer",
+      "isActive": true,
+      "companyId": "company_id",
+      "departmentId": "department_id",
+      "department": {
+        "id": "department_id",
+        "name": "Development"
+      }
     }
   ]
 }
@@ -455,9 +654,11 @@
 
 ---
 
-## `GET /employees/:employeeId`
+## `GET /api/v1/employees/:employeeId`
 
-### Response
+**Access:** `COMPANY_OWNER`
+
+**Response**
 
 ```json
 {
@@ -467,10 +668,28 @@
     "id": "employee_id",
     "name": "Rahim Uddin",
     "email": "rahim@example.com",
+    "phone": "01700000000",
     "role": "EMPLOYEE",
+    "image": "https://example.com/rahim.png",
+    "bio": "Frontend developer",
+    "isActive": true,
+    "companyId": "company_id",
+    "departmentId": "department_id",
     "department": {
       "id": "department_id",
       "name": "Development"
+    },
+    "assignedTasks": [
+      {
+        "id": "task_id",
+        "title": "Build landing page",
+        "status": "PENDING",
+        "priority": "HIGH",
+        "deadline": "2026-04-05T12:00:00.000Z"
+      }
+    ],
+    "_count": {
+      "assignedTasks": 1
     }
   }
 }
@@ -478,21 +697,24 @@
 
 ---
 
-## `PATCH /employees/:employeeId`
+## `PATCH /api/v1/employees/:employeeId`
 
-### Request body
+**Access:** `COMPANY_OWNER`
+
+**Request body**
 
 ```json
 {
   "name": "Rahim Hasan",
   "phone": "01800000000",
   "bio": "Updated bio",
+  "image": "https://example.com/new.png",
   "departmentId": null,
   "isActive": true
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -501,17 +723,25 @@
   "data": {
     "id": "employee_id",
     "name": "Rahim Hasan",
+    "email": "rahim@example.com",
     "phone": "01800000000",
-    "isActive": true
+    "role": "EMPLOYEE",
+    "image": "https://example.com/new.png",
+    "bio": "Updated bio",
+    "isActive": true,
+    "companyId": "company_id",
+    "departmentId": null
   }
 }
 ```
 
 ---
 
-## `DELETE /employees/:employeeId`
+## `DELETE /api/v1/employees/:employeeId`
 
-### Response
+**Access:** `COMPANY_OWNER`
+
+**Response**
 
 ```json
 {
@@ -519,18 +749,24 @@
   "message": "Employee deactivated successfully",
   "data": {
     "id": "employee_id",
-    "isActive": false
+    "name": "Rahim Uddin",
+    "email": "rahim@example.com",
+    "role": "EMPLOYEE",
+    "isActive": false,
+    "updatedAt": "2026-03-31T00:00:00.000Z"
   }
 }
 ```
 
 ---
 
-# 4) Department Routes
+# 5) Department Routes
 
-## `POST /departments`
+## `POST /api/v1/departments`
 
-### Request body
+**Access:** `COMPANY_OWNER`
+
+**Request body**
 
 ```json
 {
@@ -538,7 +774,7 @@
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -547,22 +783,26 @@
   "data": {
     "id": "department_id",
     "name": "Development",
-    "companyId": "company_id"
+    "companyId": "company_id",
+    "createdAt": "2026-03-31T00:00:00.000Z",
+    "updatedAt": "2026-03-31T00:00:00.000Z"
   }
 }
 ```
 
 ---
 
-## `GET /departments`
+## `GET /api/v1/departments`
 
-### Request query
+**Access:** `COMPANY_OWNER`
+
+**Query**
 
 ```http
 /departments?page=1&limit=10&searchTerm=dev
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -577,6 +817,9 @@
     {
       "id": "department_id",
       "name": "Development",
+      "companyId": "company_id",
+      "createdAt": "2026-03-31T00:00:00.000Z",
+      "updatedAt": "2026-03-31T00:00:00.000Z",
       "_count": {
         "users": 2,
         "tasks": 5
@@ -588,9 +831,11 @@
 
 ---
 
-## `GET /departments/:departmentId`
+## `GET /api/v1/departments/:departmentId`
 
-### Response
+**Access:** `COMPANY_OWNER`
+
+**Response**
 
 ```json
 {
@@ -599,17 +844,47 @@
   "data": {
     "id": "department_id",
     "name": "Development",
-    "users": [],
-    "tasks": []
+    "companyId": "company_id",
+    "createdAt": "2026-03-31T00:00:00.000Z",
+    "updatedAt": "2026-03-31T00:00:00.000Z",
+    "users": [
+      {
+        "id": "employee_id",
+        "name": "Rahim",
+        "email": "rahim@example.com",
+        "phone": "01700000000",
+        "role": "EMPLOYEE",
+        "isActive": true
+      }
+    ],
+    "tasks": [
+      {
+        "id": "task_id",
+        "title": "Build landing page",
+        "status": "PENDING",
+        "priority": "HIGH",
+        "deadline": "2026-04-05T12:00:00.000Z",
+        "assignedTo": {
+          "id": "employee_id",
+          "name": "Rahim"
+        }
+      }
+    ],
+    "_count": {
+      "users": 1,
+      "tasks": 1
+    }
   }
 }
 ```
 
 ---
 
-## `PATCH /departments/:departmentId`
+## `PATCH /api/v1/departments/:departmentId`
 
-### Request body
+**Access:** `COMPANY_OWNER`
+
+**Request body**
 
 ```json
 {
@@ -617,7 +892,7 @@
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -625,16 +900,21 @@
   "message": "Department updated successfully",
   "data": {
     "id": "department_id",
-    "name": "Marketing"
+    "name": "Marketing",
+    "companyId": "company_id",
+    "createdAt": "2026-03-31T00:00:00.000Z",
+    "updatedAt": "2026-03-31T00:00:00.000Z"
   }
 }
 ```
 
 ---
 
-## `DELETE /departments/:departmentId`
+## `DELETE /api/v1/departments/:departmentId`
 
-### Response
+**Access:** `COMPANY_OWNER`
+
+**Response**
 
 ```json
 {
@@ -646,11 +926,13 @@
 
 ---
 
-# 5) Task Routes
+# 6) Task Routes
 
-## `POST /tasks`
+## `POST /api/v1/tasks`
 
-### Request body
+**Access:** `COMPANY_OWNER`
+
+**Request body**
 
 ```json
 {
@@ -663,7 +945,7 @@
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -672,11 +954,27 @@
   "data": {
     "id": "task_id",
     "title": "Build landing page",
+    "description": "Create a premium landing page",
     "status": "PENDING",
     "priority": "HIGH",
+    "deadline": "2026-04-05T12:00:00.000Z",
+    "startedAt": null,
+    "completedAt": null,
+    "companyId": "company_id",
+    "departmentId": "department_id",
+    "assignedBy": {
+      "id": "owner_id",
+      "name": "Owner",
+      "role": "COMPANY_OWNER"
+    },
     "assignedTo": {
       "id": "employee_id",
-      "name": "Rahim"
+      "name": "Rahim",
+      "role": "EMPLOYEE"
+    },
+    "department": {
+      "id": "department_id",
+      "name": "Development"
     }
   }
 }
@@ -684,15 +982,17 @@
 
 ---
 
-## `GET /tasks`
+## `GET /api/v1/tasks`
 
-### Request query
+**Access:** `COMPANY_OWNER` / `EMPLOYEE`
+
+**Query**
 
 ```http
 /tasks?page=1&limit=10&status=PENDING&priority=HIGH&departmentId=department_id&assignedToId=employee_id&searchTerm=landing
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -707,8 +1007,28 @@
     {
       "id": "task_id",
       "title": "Build landing page",
+      "description": "Create a premium landing page",
       "status": "PENDING",
-      "priority": "HIGH"
+      "priority": "HIGH",
+      "deadline": "2026-04-05T12:00:00.000Z",
+      "startedAt": null,
+      "completedAt": null,
+      "companyId": "company_id",
+      "departmentId": "department_id",
+      "assignedBy": {
+        "id": "owner_id",
+        "name": "Owner",
+        "role": "COMPANY_OWNER"
+      },
+      "assignedTo": {
+        "id": "employee_id",
+        "name": "Rahim",
+        "role": "EMPLOYEE"
+      },
+      "department": {
+        "id": "department_id",
+        "name": "Development"
+      }
     }
   ]
 }
@@ -716,9 +1036,11 @@
 
 ---
 
-## `GET /tasks/:taskId`
+## `GET /api/v1/tasks/:taskId`
 
-### Response
+**Access:** task access আছে এমন user
+
+**Response**
 
 ```json
 {
@@ -729,6 +1051,24 @@
     "title": "Build landing page",
     "description": "Create a premium landing page",
     "status": "PENDING",
+    "priority": "HIGH",
+    "deadline": "2026-04-05T12:00:00.000Z",
+    "assignedBy": {
+      "id": "owner_id",
+      "name": "Owner",
+      "role": "COMPANY_OWNER",
+      "email": "owner@example.com"
+    },
+    "assignedTo": {
+      "id": "employee_id",
+      "name": "Rahim",
+      "role": "EMPLOYEE",
+      "email": "rahim@example.com"
+    },
+    "department": {
+      "id": "department_id",
+      "name": "Development"
+    },
     "comments": [],
     "attachments": []
   }
@@ -737,9 +1077,11 @@
 
 ---
 
-## `PATCH /tasks/:taskId`
+## `PATCH /api/v1/tasks/:taskId`
 
-### Request body
+**Access:** `COMPANY_OWNER`
+
+**Request body**
 
 ```json
 {
@@ -753,7 +1095,7 @@
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -762,16 +1104,25 @@
   "data": {
     "id": "task_id",
     "title": "Updated task title",
-    "status": "IN_PROGRESS"
+    "description": "Updated description",
+    "status": "IN_PROGRESS",
+    "priority": "MEDIUM",
+    "deadline": "2026-04-10T12:00:00.000Z",
+    "startedAt": "2026-03-31T00:00:00.000Z",
+    "completedAt": null,
+    "companyId": "company_id",
+    "departmentId": "department_id"
   }
 }
 ```
 
 ---
 
-## `PATCH /tasks/:taskId/my-status`
+## `PATCH /api/v1/tasks/:taskId/my-status`
 
-### Request body
+**Access:** `EMPLOYEE` বা নিজের assigned task হলে `COMPANY_OWNER`
+
+**Request body**
 
 ```json
 {
@@ -779,7 +1130,7 @@
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -787,16 +1138,24 @@
   "message": "Task status updated successfully",
   "data": {
     "id": "task_id",
-    "status": "COMPLETED"
+    "title": "Build landing page",
+    "description": "Create a premium landing page",
+    "status": "COMPLETED",
+    "priority": "HIGH",
+    "deadline": "2026-04-05T12:00:00.000Z",
+    "startedAt": "2026-03-31T00:00:00.000Z",
+    "completedAt": "2026-03-31T02:00:00.000Z"
   }
 }
 ```
 
 ---
 
-## `DELETE /tasks/:taskId`
+## `DELETE /api/v1/tasks/:taskId`
 
-### Response
+**Access:** `COMPANY_OWNER`
+
+**Response**
 
 ```json
 {
@@ -808,11 +1167,11 @@
 
 ---
 
-# 6) Task Comment Routes
+# 7) Task Comment Routes
 
-## `POST /tasks/:taskId/comments`
+## `POST /api/v1/task-comments/:taskId`
 
-### Request body
+**Request body**
 
 ```json
 {
@@ -820,7 +1179,7 @@
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -829,9 +1188,11 @@
   "data": {
     "id": "comment_id",
     "message": "Please update UI margin",
+    "createdAt": "2026-03-31T00:00:00.000Z",
     "user": {
       "id": "user_id",
-      "name": "Rahim"
+      "name": "Rahim",
+      "role": "EMPLOYEE"
     }
   }
 }
@@ -839,9 +1200,9 @@
 
 ---
 
-## `GET /tasks/:taskId/comments`
+## `GET /api/v1/task-comments/:taskId`
 
-### Response
+**Response**
 
 ```json
 {
@@ -850,7 +1211,13 @@
   "data": [
     {
       "id": "comment_id",
-      "message": "Please update UI margin"
+      "message": "Please update UI margin",
+      "createdAt": "2026-03-31T00:00:00.000Z",
+      "user": {
+        "id": "user_id",
+        "name": "Rahim",
+        "role": "EMPLOYEE"
+      }
     }
   ]
 }
@@ -858,9 +1225,9 @@
 
 ---
 
-## `DELETE /comments/:commentId`
+## `DELETE /api/v1/task-comments/comment/:commentId`
 
-### Response
+**Response**
 
 ```json
 {
@@ -872,21 +1239,20 @@
 
 ---
 
-# 7) Task Attachment Routes
+# 8) Task Attachment Routes
 
-## `POST /tasks/:taskId/attachments`
+## `POST /api/v1/task-attachments/:taskId`
 
-### Request
-
+**Request**
 `multipart/form-data`
 
-Field:
+**Field**
 
 ```text
 file = your file
 ```
 
-### Response
+**Response**
 
 ```json
 {
@@ -896,16 +1262,22 @@ file = your file
     "id": "attachment_id",
     "fileName": "design.png",
     "fileUrl": "https://res.cloudinary.com/...",
-    "fileType": "image/png"
+    "fileType": "image/png",
+    "createdAt": "2026-03-31T00:00:00.000Z",
+    "uploadedBy": {
+      "id": "user_id",
+      "name": "Rahim",
+      "role": "EMPLOYEE"
+    }
   }
 }
 ```
 
 ---
 
-## `GET /tasks/:taskId/attachments`
+## `GET /api/v1/task-attachments/:taskId`
 
-### Response
+**Response**
 
 ```json
 {
@@ -915,7 +1287,13 @@ file = your file
     {
       "id": "attachment_id",
       "fileName": "design.png",
-      "fileUrl": "https://res.cloudinary.com/..."
+      "fileUrl": "https://res.cloudinary.com/...",
+      "fileType": "image/png",
+      "createdAt": "2026-03-31T00:00:00.000Z",
+      "uploadedBy": {
+        "id": "user_id",
+        "name": "Rahim"
+      }
     }
   ]
 }
@@ -923,9 +1301,9 @@ file = your file
 
 ---
 
-## `DELETE /attachments/:attachmentId`
+## `DELETE /api/v1/task-attachments/attachment/:attachmentId`
 
-### Response
+**Response**
 
 ```json
 {
@@ -937,49 +1315,285 @@ file = your file
 
 ---
 
-# Full route list only
+# 7) Dashboard Route
+
+## `GET /api/v1/dashboard/stats`
+
+**কাজ:** logged-in user অনুযায়ী dashboard stats আনা
+
+**Access:**
+
+- `ADMIN`
+- `COMPANY_OWNER`
+- `EMPLOYEE`
+
+**Request:**
+কোনো body লাগবে না
+শুধু login session / cookie লাগবে
+
+---
+
+## Example Request
 
 ```http
-POST   /auth/register
-POST   /auth/login
-POST   /auth/logout
-GET    /auth/me
-POST   /auth/change-password
-GET    /auth/all
+GET /api/v1/dashboard/stats
+```
 
-POST   /companies
-GET    /companies/my-company
-PATCH  /companies/my-company
-GET    /companies
-GET    /companies/:slugOrId
-PATCH  /companies/:companyId/verify
-PATCH  /companies/:companyId/status
+---
 
-POST   /employees
-PATCH  /employees/convert-existing
-GET    /employees
-GET    /employees/:employeeId
-PATCH  /employees/:employeeId
-DELETE /employees/:employeeId
+## Response for `ADMIN`
 
-POST   /departments
-GET    /departments
-GET    /departments/:departmentId
-PATCH  /departments/:departmentId
-DELETE /departments/:departmentId
+```json
+{
+  "success": true,
+  "message": "Dashboard stats retrieved successfully",
+  "data": {
+    "scope": "ADMIN",
+    "overview": {
+      "totalUsers": 20,
+      "totalCompanies": 5,
+      "activeCompanies": 4,
+      "verifiedCompanies": 3,
+      "totalEmployees": 10,
+      "totalCompanyOwners": 5,
+      "totalTasks": 50
+    },
+    "tasks": {
+      "pending": 10,
+      "inProgress": 12,
+      "review": 5,
+      "completed": 20,
+      "cancelled": 3,
+      "overdue": 2,
+      "dueToday": 4,
+      "urgent": 6,
+      "highPriority": 9
+    },
+    "recentCompanies": [
+      {
+        "id": "company_id",
+        "name": "AB Tech",
+        "slug": "ab-tech",
+        "isActive": true,
+        "isVerified": true,
+        "createdAt": "2026-03-31T00:00:00.000Z",
+        "owner": {
+          "id": "user_id",
+          "name": "Owner Name",
+          "email": "owner@example.com"
+        }
+      }
+    ],
+    "recentTasks": [
+      {
+        "id": "task_id",
+        "title": "Build landing page",
+        "status": "PENDING",
+        "priority": "HIGH",
+        "deadline": "2026-04-05T12:00:00.000Z",
+        "createdAt": "2026-03-31T00:00:00.000Z",
+        "company": {
+          "id": "company_id",
+          "name": "AB Tech",
+          "slug": "ab-tech"
+        },
+        "assignedTo": {
+          "id": "employee_id",
+          "name": "Rahim",
+          "email": "rahim@example.com"
+        }
+      }
+    ]
+  }
+}
+```
 
-POST   /tasks
-GET    /tasks
-GET    /tasks/:taskId
-PATCH  /tasks/:taskId
-PATCH  /tasks/:taskId/my-status
-DELETE /tasks/:taskId
+---
 
-POST   /tasks/:taskId/comments
-GET    /tasks/:taskId/comments
-DELETE /comments/:commentId
+## Response for `COMPANY_OWNER`
 
-POST   /tasks/:taskId/attachments
-GET    /tasks/:taskId/attachments
-DELETE /attachments/:attachmentId
+```json
+{
+  "success": true,
+  "message": "Dashboard stats retrieved successfully",
+  "data": {
+    "scope": "COMPANY_OWNER",
+    "company": {
+      "id": "company_id",
+      "name": "AB Tech",
+      "slug": "ab-tech",
+      "isActive": true,
+      "isVerified": false
+    },
+    "overview": {
+      "totalEmployees": 8,
+      "activeEmployees": 7,
+      "inactiveEmployees": 1,
+      "totalDepartments": 3,
+      "totalTasks": 18
+    },
+    "tasks": {
+      "pending": 4,
+      "inProgress": 5,
+      "onHold": 2,
+      "review": 1,
+      "completed": 5,
+      "cancelled": 1,
+      "overdue": 2,
+      "dueToday": 3,
+      "urgent": 2,
+      "highPriority": 4
+    },
+    "recentEmployees": [
+      {
+        "id": "employee_id",
+        "name": "Rahim Uddin",
+        "email": "rahim@example.com",
+        "phone": "01700000000",
+        "isActive": true,
+        "createdAt": "2026-03-31T00:00:00.000Z",
+        "department": {
+          "id": "department_id",
+          "name": "Development"
+        }
+      }
+    ],
+    "recentTasks": [
+      {
+        "id": "task_id",
+        "title": "Build landing page",
+        "status": "PENDING",
+        "priority": "HIGH",
+        "deadline": "2026-04-05T12:00:00.000Z",
+        "createdAt": "2026-03-31T00:00:00.000Z",
+        "assignedTo": {
+          "id": "employee_id",
+          "name": "Rahim",
+          "email": "rahim@example.com"
+        },
+        "assignedBy": {
+          "id": "owner_id",
+          "name": "Anwarul"
+        },
+        "department": {
+          "id": "department_id",
+          "name": "Development"
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Response for `EMPLOYEE`
+
+```json
+{
+  "success": true,
+  "message": "Dashboard stats retrieved successfully",
+  "data": {
+    "scope": "EMPLOYEE",
+    "overview": {
+      "totalTasks": 10,
+      "pendingTasks": 2,
+      "inProgressTasks": 3,
+      "onHoldTasks": 1,
+      "reviewTasks": 1,
+      "completedTasks": 2,
+      "cancelledTasks": 1,
+      "overdueTasks": 1,
+      "dueTodayTasks": 2,
+      "urgentTasks": 1,
+      "highPriorityTasks": 2
+    },
+    "recentTasks": [
+      {
+        "id": "task_id",
+        "title": "Build landing page",
+        "status": "IN_PROGRESS",
+        "priority": "HIGH",
+        "deadline": "2026-04-05T12:00:00.000Z",
+        "startedAt": "2026-03-31T01:00:00.000Z",
+        "completedAt": null,
+        "createdAt": "2026-03-31T00:00:00.000Z",
+        "assignedBy": {
+          "id": "owner_id",
+          "name": "Anwarul",
+          "email": "owner@example.com"
+        },
+        "department": {
+          "id": "department_id",
+          "name": "Development"
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Error Response Example
+
+যদি login না থাকে:
+
+```json
+{
+  "success": false,
+  "message": "Unauthorized"
+}
+```
+
+---
+
+# 9) Full Final Route List
+
+```bash
+POST   /api/v1/auth/register
+POST   /api/v1/auth/login
+POST   /api/v1/auth/logout
+GET    /api/v1/auth/me
+POST   /api/v1/auth/change-password
+GET    /api/v1/auth/all
+
+POST   /api/v1/companies
+GET    /api/v1/companies/my-company
+PATCH  /api/v1/companies/my-company
+GET    /api/v1/companies
+GET    /api/v1/companies/:slugOrId
+PATCH  /api/v1/companies/:companyId/verify
+PATCH  /api/v1/companies/:companyId/status
+
+GET    /api/v1/dashboard/stats
+
+POST   /api/v1/employees
+PATCH  /api/v1/employees/convert-existing
+GET    /api/v1/employees
+GET    /api/v1/employees/:employeeId
+PATCH  /api/v1/employees/:employeeId
+DELETE /api/v1/employees/:employeeId
+
+POST   /api/v1/departments
+GET    /api/v1/departments
+GET    /api/v1/departments/:departmentId
+PATCH  /api/v1/departments/:departmentId
+DELETE /api/v1/departments/:departmentId
+
+POST   /api/v1/tasks
+GET    /api/v1/tasks
+GET    /api/v1/tasks/:taskId
+PATCH  /api/v1/tasks/:taskId
+PATCH  /api/v1/tasks/:taskId/my-status
+DELETE /api/v1/tasks/:taskId
+
+POST   /api/v1/task-comments/:taskId
+GET    /api/v1/task-comments/:taskId
+DELETE /api/v1/task-comments/comment/:commentId
+
+POST   /api/v1/task-attachments/:taskId
+GET    /api/v1/task-attachments/:taskId
+DELETE /api/v1/task-attachments/attachment/:attachmentId
+GET    /api/v1/dashboard/stats
 ```

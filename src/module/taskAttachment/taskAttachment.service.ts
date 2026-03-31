@@ -1,72 +1,26 @@
 import type { Request } from "express";
-import { fromNodeHeaders } from "better-auth/node";
-import { UserRole } from "../../../generated/prisma/client";
-
-import { auth } from "../../lib/auth";
-import { prisma } from "../../lib/prisma";
 import cloudinary from "../../lib/cloudinary";
+import { prisma } from "../../lib/prisma";
 import AppError from "../../utils/AppError";
-
-const getAuthUser = async (req: Request) => {
-  const session = await auth.api.getSession({
-    headers: fromNodeHeaders(req.headers),
-  });
-
-  if (!session?.user?.id) {
-    throw new AppError(401, "Unauthorized");
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: {
-      id: true,
-      role: true,
-      companyId: true,
-    },
-  });
-
-  if (!user) throw new AppError(404, "User not found");
-
-  return user;
-};
-
-const checkTaskAccess = async (user: any, taskId: string) => {
-  const task = await prisma.task.findFirst({
-    where: { id: taskId },
-    select: {
-      id: true,
-      companyId: true,
-      assignedToId: true,
-    },
-  });
-
-  if (!task) throw new AppError(404, "Task not found");
-
-  if (user.role === UserRole.COMPANY_OWNER) {
-    if (task.companyId !== user.companyId) {
-      throw new AppError(403, "Not your company task");
-    }
-  }
-
-  if (user.role === UserRole.EMPLOYEE) {
-    if (task.assignedToId !== user.id) {
-      throw new AppError(403, "Not your task");
-    }
-  }
-
-  return task;
-};
+import getAuthUser from "../../utils/getAuthUser";
+import {
+  ensureTaskAccess,
+  ensureAttachmentDeleteAccess,
+} from "../../utils/accessControl";
 
 const uploadAttachment = async (req: Request, taskId: string) => {
   const user = await getAuthUser(req);
 
-  await checkTaskAccess(user, taskId);
+  await ensureTaskAccess(user, taskId);
 
   if (!req.file) {
     throw new AppError(400, "No file uploaded");
   }
 
-  const file = req.file as any;
+  const file = req.file as Express.Multer.File & {
+    path: string;
+    filename: string;
+  };
 
   const attachment = await prisma.taskAttachment.create({
     data: {
@@ -99,7 +53,7 @@ const uploadAttachment = async (req: Request, taskId: string) => {
 const getAttachments = async (req: Request, taskId: string) => {
   const user = await getAuthUser(req);
 
-  await checkTaskAccess(user, taskId);
+  await ensureTaskAccess(user, taskId);
 
   const attachments = await prisma.taskAttachment.findMany({
     where: { taskId },
@@ -125,35 +79,7 @@ const getAttachments = async (req: Request, taskId: string) => {
 const deleteAttachment = async (req: Request, attachmentId: string) => {
   const user = await getAuthUser(req);
 
-  const attachment = await prisma.taskAttachment.findUnique({
-    where: { id: attachmentId },
-    select: {
-      id: true,
-      publicId: true,
-      uploadedById: true,
-      task: {
-        select: {
-          companyId: true,
-        },
-      },
-    },
-  });
-
-  if (!attachment) throw new AppError(404, "Attachment not found");
-
-  if (
-    user.role !== UserRole.COMPANY_OWNER &&
-    attachment.uploadedById !== user.id
-  ) {
-    throw new AppError(403, "Not allowed");
-  }
-
-  if (
-    user.role === UserRole.COMPANY_OWNER &&
-    user.companyId !== attachment.task.companyId
-  ) {
-    throw new AppError(403, "Not your company file");
-  }
+  const attachment = await ensureAttachmentDeleteAccess(user, attachmentId);
 
   await cloudinary.uploader.destroy(attachment.publicId as string);
 

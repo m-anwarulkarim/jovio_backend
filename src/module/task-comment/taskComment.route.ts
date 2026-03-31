@@ -7,20 +7,16 @@ import { createCommentValidationSchema } from "./taskComment.validation";
 const router = Router();
 
 router.post(
-  "/tasks/:taskId/comments",
+  "/:taskId",
   requireAuth,
   validateRequest(createCommentValidationSchema),
   TaskCommentController.createComment,
 );
 
-router.get(
-  "/tasks/:taskId/comments",
-  requireAuth,
-  TaskCommentController.getTaskComments,
-);
+router.get("/:taskId", requireAuth, TaskCommentController.getTaskComments);
 
 router.delete(
-  "/comments/:commentId",
+  "/comment/:commentId",
   requireAuth,
   TaskCommentController.deleteComment,
 );
