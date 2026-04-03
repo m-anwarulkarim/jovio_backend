@@ -9,7 +9,6 @@ const app = express();
 
 app.use(express.json());
 
-// CORS setup
 app.use(
   cors({
     origin: env.FRONTEND_URL,
@@ -18,17 +17,16 @@ app.use(
   }),
 );
 
-app.use("/api/v1", router);
-
-// test route (health check)
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.status(200).json({
     success: true,
     message: "🚀 Server is running...",
   });
 });
 
-app.use(notFound);
+app.use("/api/v1", router);
 
+app.use(notFound);
 app.use(globalErrorHandler);
+
 export default app;

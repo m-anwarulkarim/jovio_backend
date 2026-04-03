@@ -9,490 +9,270 @@ datasource db {
 
 enum UserRole {
   ADMIN
+  EMPLOYEE
   CLIENT
-  FREELANCER
-  COMPANY_OWNER
-  EMPLOYEE
 }
 
-enum CompanyMemberType {
-  OWNER
-  EMPLOYEE
-}
-
-enum TaskStatus {
-  PENDING
-  IN_PROGRESS
-  ON_HOLD
-  REVIEW
-  COMPLETED
-  CANCELLED
-}
-
-enum TaskPriority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
-enum JobStatus {
-  OPEN
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-}
-
-enum ProposalStatus {
+enum OfferStatus {
   PENDING
   ACCEPTED
   REJECTED
-  WITHDRAWN
-}
-
-enum OrderStatus {
-  PENDING
-  ACTIVE
-  DELIVERED
-  REVISION
-  COMPLETED
+  EXPIRED
   CANCELLED
 }
 
+enum ProjectStatus {
+  NEW
+  UNDER_REVIEW
+  ASSIGNED
+  IN_PROGRESS
+  WAITING_FOR_CLIENT
+  REVIEW
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+enum MessageSenderType {
+  CLIENT
+  ADMIN
+  EMPLOYEE
+}
+
+enum MessageType {
+  TEXT
+  ISSUE
+  UPDATE
+  FEEDBACK
+  SYSTEM
+}
+
+enum AttachmentType {
+  IMAGE
+  FILE
+  LINK
+}
+
+enum NotificationType {
+  NEW_MESSAGE
+  NEW_OFFER
+  OFFER_ACCEPTED
+  OFFER_REJECTED
+  PROJECT_ASSIGNED
+  PROJECT_STATUS_CHANGED
+  PROJECT_UPDATE
+}
+
 model User {
-  id       String   @id @default(cuid())
-  name     String
-  email    String?  @unique
-  phone    String?  @unique
-  password String?
-  role     UserRole @default(CLIENT)
-  avatar   String?
-  bio      String?
-  isActive Boolean  @default(true)
+  id             String    @id @default(cuid())
+  name           String
+  email          String?   @unique
+  phone          String?   @unique
+  password       String?
+  role           UserRole  @default(CLIENT)
 
-  companyId String?
-  company   Company? @relation("CompanyMembers", fields: [companyId], references: [id], onDelete: SetNull)
+  bio            String?
+  isActive       Boolean   @default(true)
+  emailVerified  Boolean   @default(false)
+  image          String?
 
-  ownedCompany Company? @relation("CompanyOwner")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  departmentId String?
-  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  // Relations
+  clientOffers        Offer[]         @relation("ClientOffers")
+  clientProjects      Project[]       @relation("ClientProjects")
 
-  assignedTasks Task[]           @relation("AssignedTasks")
-  createdTasks  Task[]           @relation("CreatedTasks")
-  taskComments  TaskComment[]
-  taskFiles     TaskAttachment[]
-  activityLogs  ActivityLog[]
+  adminOffers         Offer[]         @relation("AdminOffers")
+  assignedByProjects  Project[]       @relation("AssignedByAdminProjects")
 
-  gigs                Gig[]
-  jobPosts            JobPost[]
-  freelancerProposals Proposal[] @relation("FreelancerProposals")
-  clientOrders        Order[]    @relation("ClientOrders")
-  freelancerOrders    Order[]    @relation("FreelancerOrders")
-  authoredReviews     Review[]   @relation("AuthoredReviews")
-  receivedUserReviews Review[]   @relation("UserReviewsReceived")
-  userSkills          UserSkill[]
+  assignedProjects    Project[]       @relation("AssignedEmployeeProjects")
+  projectUpdates      ProjectUpdate[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  sentMessages        Message[]
+  uploadedAttachments Attachment[]    @relation("UploadedByUser")
+  notifications       Notification[]
 
-  emailVerified Boolean   @default(false)
-  image         String?
-  sessions      Session[]
-  accounts      Account[]
+  sessions            Session[]
+  accounts            Account[]
 
   @@index([role])
-  @@index([companyId])
-  @@index([departmentId])
   @@map("users")
 }
 
-model Company {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  slug        String   @unique
-  description String?
-  logo        String?
-  website     String?
-  isActive    Boolean  @default(true)
-  isVerified  Boolean  @default(false)
+model Offer {
+  id            String       @id @default(cuid())
+  offerId       String       @unique
+  title         String
+  description   String
+  price         Decimal      @db.Decimal(10, 2)
+  deliveryDays  Int
+  revisions     Int?
+  note          String?
+  status        OfferStatus  @default(PENDING)
+  expiresAt     DateTime?
 
-  ownerId String @unique
-  owner   User   @relation("CompanyOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  clientId      String
+  adminId       String
 
-  members     User[]        @relation("CompanyMembers")
-  departments Department[]
-  tasks       Task[]
-  proposals   Proposal[]    @relation("CompanyProposals")
-  orders      Order[]       @relation("CompanyOrders")
-  reviewsReceived Review[]  @relation("CompanyReviewsReceived")
-  activityLogs ActivityLog[]
+  acceptedAt    DateTime?
+  rejectedAt    DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
-  @@index([ownerId])
-  @@map("companies")
-}
+  client        User         @relation("ClientOffers", fields: [clientId], references: [id])
+  admin         User         @relation("AdminOffers", fields: [adminId], references: [id])
+  project       Project?
+  attachments   Attachment[]
+  notifications Notification[]
 
-model Department {
-  id   String @id @default(cuid())
-  name String
-
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  users User[]
-  tasks Task[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([companyId, name])
-  @@index([companyId])
-  @@map("departments")
-}
-
-model Task {
-  id          String       @id @default(cuid())
-  title       String
-  description String?
-  status      TaskStatus   @default(PENDING)
-  priority    TaskPriority @default(MEDIUM)
-  deadline    DateTime?
-  startedAt   DateTime?
-  completedAt DateTime?
-
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  assignedById String
-  assignedBy   User @relation("CreatedTasks", fields: [assignedById], references: [id], onDelete: Cascade)
-
-  assignedToId String
-  assignedTo   User @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: Cascade)
-
-  departmentId String?
-  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-
-  comments    TaskComment[]
-  attachments TaskAttachment[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([companyId])
+  @@index([clientId])
+  @@index([adminId])
   @@index([status])
-  @@index([priority])
-  @@index([assignedById])
-  @@index([assignedToId])
-  @@index([departmentId])
-  @@index([deadline])
-  @@map("tasks")
+  @@map("offers")
 }
 
-model TaskComment {
-  id      String @id @default(cuid())
-  taskId  String
-  userId  String
-  message String
+model Project {
+  id                 String         @id @default(cuid())
+  projectId          String         @unique
+  title              String
+  description        String
+  serviceCategory    String
+  budget             Decimal?       @db.Decimal(10, 2)
+  deadline           DateTime?
+  status             ProjectStatus  @default(NEW)
 
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId           String
+  assignedEmployeeId String?
+  assignedByAdminId  String?
+  offerId            String?        @unique
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
-  @@index([taskId])
+  client             User           @relation("ClientProjects", fields: [clientId], references: [id])
+  assignedEmployee   User?          @relation("AssignedEmployeeProjects", fields: [assignedEmployeeId], references: [id])
+  assignedByAdmin    User?          @relation("AssignedByAdminProjects", fields: [assignedByAdminId], references: [id])
+
+  offer              Offer?         @relation(fields: [offerId], references: [id])
+  messages           Message[]
+  updates            ProjectUpdate[]
+  attachments        Attachment[]
+  notifications      Notification[]
+
+  @@index([clientId])
+  @@index([assignedEmployeeId])
+  @@index([assignedByAdminId])
+  @@index([offerId])
+  @@index([status])
+  @@map("projects")
+}
+
+model ProjectUpdate {
+  id          String         @id @default(cuid())
+  projectId   String
+  userId      String
+  progress    Int?
+  note        String
+  issue       String?
+  createdAt   DateTime       @default(now())
+
+  project     Project        @relation(fields: [projectId], references: [id])
+  user        User           @relation(fields: [userId], references: [id])
+  attachments Attachment[]
+
+  @@index([projectId])
   @@index([userId])
-  @@map("task_comments")
+  @@map("project_updates")
 }
 
-model TaskAttachment {
-  id           String  @id @default(cuid())
-  taskId       String
-  uploadedById String
-  fileName     String
-  fileUrl      String
-  fileType     String?
-  publicId     String?
+model Message {
+  id          String            @id @default(cuid())
+  projectId   String?
+  senderId    String
+  senderType  MessageSenderType
+  type        MessageType       @default(TEXT)
+  text        String
+  isRead      Boolean           @default(false)
+  createdAt   DateTime          @default(now())
 
-  task       Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  uploadedBy User @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  project     Project?          @relation(fields: [projectId], references: [id])
+  sender      User              @relation(fields: [senderId], references: [id])
+  attachments Attachment[]
 
-  createdAt DateTime @default(now())
+  @@index([projectId])
+  @@index([senderId])
+  @@index([isRead])
+  @@map("messages")
+}
 
-  @@index([taskId])
+model Attachment {
+  id              String          @id @default(cuid())
+  type            AttachmentType
+  url             String
+  uploadedById    String?
+  createdAt       DateTime        @default(now())
+
+  messageId       String?
+  projectId       String?
+  offerId         String?
+  projectUpdateId String?
+
+  message         Message?        @relation(fields: [messageId], references: [id])
+  project         Project?        @relation(fields: [projectId], references: [id])
+  offer           Offer?          @relation(fields: [offerId], references: [id])
+  projectUpdate   ProjectUpdate?  @relation(fields: [projectUpdateId], references: [id])
+  uploadedBy      User?           @relation("UploadedByUser", fields: [uploadedById], references: [id])
+
   @@index([uploadedById])
-  @@map("task_attachments")
+  @@index([messageId])
+  @@index([projectId])
+  @@index([offerId])
+  @@index([projectUpdateId])
+  @@map("attachments")
 }
 
-model ActivityLog {
-  id         String  @id @default(cuid())
+model Notification {
+  id         String            @id @default(cuid())
   userId     String
-  action     String
-  entityType String
-  entityId   String?
-  details    String?
+  offerId    String?
+  projectId  String?
+  type       NotificationType
+  title      String
+  body       String?
+  isRead     Boolean           @default(false)
+  createdAt  DateTime          @default(now())
 
-  companyId String?
-  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
+  user       User              @relation(fields: [userId], references: [id])
+  offer      Offer?            @relation(fields: [offerId], references: [id])
+  project    Project?          @relation(fields: [projectId], references: [id])
 
   @@index([userId])
-  @@index([companyId])
-  @@index([entityType])
-  @@index([entityId])
-  @@map("activity_logs")
-}
-
-model Skill {
-  id        String      @id @default(cuid())
-  name      String      @unique
-  users     UserSkill[]
-  createdAt DateTime    @default(now())
-
-  @@map("skills")
-}
-
-model UserSkill {
-  id      String @id @default(cuid())
-  userId  String
-  skillId String
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, skillId])
-  @@index([userId])
-  @@index([skillId])
-  @@map("user_skills")
-}
-
-model Category {
-  id          String  @id @default(cuid())
-  name        String  @unique
-  slug        String  @unique
-  description String?
-
-  gigs     Gig[]
-  jobPosts JobPost[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("categories")
-}
-
-model Gig {
-  id          String  @id @default(cuid())
-  title       String
-  slug        String  @unique
-  description String?
-  coverImage  String?
-  isActive    Boolean @default(true)
-
-  freelancerId String
-  freelancer   User   @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
-
-  categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-
-  packages GigPackage[]
-  orders   Order[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([freelancerId])
-  @@index([categoryId])
-  @@index([title])
-  @@index([slug])
-  @@map("gigs")
-}
-
-model GigPackage {
-  id           String  @id @default(cuid())
-  gigId        String
-  name         String
-  description  String?
-  price        Float
-  deliveryDays Int
-  revisions    Int?
-
-  gig Gig @relation(fields: [gigId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([gigId])
-  @@map("gig_packages")
-}
-
-model JobPost {
-  id          String    @id @default(cuid())
-  title       String
-  description String?
-  budget      Float?
-  deadline    DateTime?
-  status      JobStatus @default(OPEN)
-
-  clientId String
-  client   User @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-
-  proposals Proposal[]
-  orders    Order[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([clientId])
-  @@index([categoryId])
-  @@index([status])
-  @@map("job_posts")
-}
-
-model Proposal {
-  id           String         @id @default(cuid())
-  jobPostId    String
-  coverLetter  String?
-  offerAmount  Float?
-  deliveryDays Int?
-  status       ProposalStatus @default(PENDING)
-
-  jobPost JobPost @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
-
-  freelancerId String?
-  freelancer   User? @relation("FreelancerProposals", fields: [freelancerId], references: [id], onDelete: Cascade)
-
-  companyId String?
-  company   Company? @relation("CompanyProposals", fields: [companyId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([jobPostId, freelancerId])
-  @@unique([jobPostId, companyId])
-  @@index([jobPostId])
-  @@index([freelancerId])
-  @@index([companyId])
-  @@index([status])
-  @@map("proposals")
-}
-
-model Order {
-  id          String      @id @default(cuid())
-  title       String
-  description String?
-  price       Float?
-  status      OrderStatus @default(PENDING)
-  deadline    DateTime?
-
-  clientId String
-  client   User @relation("ClientOrders", fields: [clientId], references: [id], onDelete: Cascade)
-
-  freelancerId String?
-  freelancer   User? @relation("FreelancerOrders", fields: [freelancerId], references: [id], onDelete: SetNull)
-
-  companyId String?
-  company   Company? @relation("CompanyOrders", fields: [companyId], references: [id], onDelete: SetNull)
-
-  gigId String?
-  gig   Gig? @relation(fields: [gigId], references: [id], onDelete: SetNull)
-
-  jobPostId String?
-  jobPost   JobPost? @relation(fields: [jobPostId], references: [id], onDelete: SetNull)
-
-  review Review?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([clientId])
-  @@index([freelancerId])
-  @@index([companyId])
-  @@index([gigId])
-  @@index([jobPostId])
-  @@index([status])
-  @@map("orders")
-}
-
-model Review {
-  id      String  @id @default(cuid())
-  rating  Int
-  comment String?
-
-  authorId String
-  author   User @relation("AuthoredReviews", fields: [authorId], references: [id], onDelete: Cascade)
-
-  targetUserId String?
-  targetUser   User? @relation("UserReviewsReceived", fields: [targetUserId], references: [id], onDelete: SetNull)
-
-  targetCompanyId String?
-  targetCompany   Company? @relation("CompanyReviewsReceived", fields: [targetCompanyId], references: [id], onDelete: SetNull)
-
-  orderId String @unique
-  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([authorId])
-  @@index([targetUserId])
-  @@index([targetCompanyId])
-  @@map("reviews")
+  @@index([offerId])
+  @@index([projectId])
+  @@index([isRead])
+  @@map("notifications")
 }
 
 model Session {
-  id        String   @id
-  expiresAt DateTime
-  token     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String    @id
+  expiresAt  DateTime
+  token      String    @unique
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
 
-  @@unique([token])
   @@index([userId])
   @@map("session")
 }
 
 model Account {
-  id                    String    @id
-  accountId             String
-  providerId            String
-  userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessToken           String?
-  refreshToken          String?
-  idToken               String?
-  accessTokenExpiresAt  DateTime?
-  refreshTokenExpiresAt DateTime?
-  scope                 String?
-  password              String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  id         String    @id
+  accountId  String
+  providerId String
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@map("account")
-}
-
-model Verification {
-  id         String   @id
-  identifier String
-  value      String
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([identifier])
-  @@map("verification")
 }

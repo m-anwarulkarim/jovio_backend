@@ -1,102 +1,43 @@
 import type { Request, Response } from "express";
 import catchAsync from "../../utils/catchAsync";
+import AppError from "../../utils/AppError";
 import sendResponse from "../../utils/sendResponse";
 import { AuthService } from "./auth.service";
 
-const applyAuthHeaders = (res: Response, headers?: Headers) => {
-  if (!headers) return;
-
-  const setCookieValues: string[] = [];
-
-  headers.forEach((value, key) => {
-    if (key.toLowerCase() === "set-cookie") {
-      setCookieValues.push(value);
-    }
-  });
-
-  if (setCookieValues.length > 0) {
-    res.setHeader("Set-Cookie", setCookieValues);
-  }
-};
-
-const register = catchAsync(async (req: Request, res: Response) => {
-  const result = await AuthService.register(req, req.body);
-
-  applyAuthHeaders(res, result.headers);
-
-  sendResponse(res, {
-    statusCode: 201,
-    success: true,
-    message: "User registered successfully",
-    data: result.data,
-  });
-});
-
-const login = catchAsync(async (req: Request, res: Response) => {
-  const result = await AuthService.login(req, req.body);
-
-  applyAuthHeaders(res, result.headers);
-
-  sendResponse(res, {
-    statusCode: 200,
-    success: true,
-    message: "User logged in successfully",
-    data: result.data,
-  });
-});
-
-const logout = catchAsync(async (req: Request, res: Response) => {
-  const result = await AuthService.logout(req);
-
-  applyAuthHeaders(res, result.headers);
-
-  sendResponse(res, {
-    statusCode: 200,
-    success: true,
-    message: "User logged out successfully",
-    data: result.data,
-  });
-});
-
 const getMe = catchAsync(async (req: Request, res: Response) => {
-  const result = await AuthService.getMe(req);
+  if (!req.user?.id) {
+    throw new AppError(401, "Unauthorized", "UNAUTHORIZED");
+  }
+
+  const user = await AuthService.getMeFromDB(req.user.id);
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "User session retrieved successfully",
-    data: result,
+    message: "Profile retrieved successfully",
+    data: user,
   });
 });
 
-const changePassword = catchAsync(async (req: Request, res: Response) => {
-  const result = await AuthService.changePassword(req, req.body);
+const getMySession = catchAsync(async (req: Request, res: Response) => {
+  if (!req.user?.id || !req.session) {
+    throw new AppError(401, "Unauthorized", "UNAUTHORIZED");
+  }
 
-  applyAuthHeaders(res, result.headers);
+  const user = await AuthService.getMySessionFromRequest(req.user.id);
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Password changed successfully",
-    data: result.data,
+    message: "Session retrieved successfully",
+    data: {
+      user,
+      session: req.session,
+    },
   });
 });
-const getAllUsers = catchAsync(async (req: Request, res: Response) => {
-  const result = await AuthService.getAllUsers(req.query);
 
-  sendResponse(res, {
-    statusCode: 200,
-    success: true,
-    message: "Users retrieved successfully",
-    meta: result.meta,
-    data: result.data,
-  });
-});
 export const AuthController = {
-  register,
-  login,
   getMe,
-  logout,
-  changePassword,
-  getAllUsers,
+  getMySession,
 };

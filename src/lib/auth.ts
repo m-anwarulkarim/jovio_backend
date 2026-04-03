@@ -29,22 +29,6 @@ export const auth = betterAuth({
         type: "string",
         required: false,
       },
-      isActive: {
-        type: "boolean",
-        required: false,
-        defaultValue: true,
-        input: false,
-      },
-      companyId: {
-        type: "string",
-        required: false,
-        input: false,
-      },
-      departmentId: {
-        type: "string",
-        required: false,
-        input: false,
-      },
     },
   },
 

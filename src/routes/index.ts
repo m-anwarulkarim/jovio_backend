@@ -1,22 +1,44 @@
 import { Router } from "express";
 import { AuthRoutes } from "../module/auth/auth.route";
-import { CompanyRoutes } from "../module/company/company.route";
-import { EmployeeRoutes } from "../module/employee/employee.route";
-import { TaskRoutes } from "../module/task/task.route";
-import { TaskCommentRoutes } from "../module/task-comment/taskComment.route";
-import { DepartmentRoutes } from "../module/department/department.route";
-import { TaskAttachmentRoutes } from "../module/taskAttachment/taskAttachment.route";
-import { DashboardRoutes } from "../module/dashboard/dashboard.route";
-
+import { MessageRoutes } from "../module/message/message.route";
+import { OfferRoutes } from "../module/offer/offer.route";
+import { ProjectRoutes } from "../module/project/project.route";
+import { ProjectUpdateRoutes } from "../module/projectUpdate/projectUpdate.route";
+import { AttachmentRoutes } from "../module/attachment/attachment.route";
+import { NotificationRoutes } from "../module/notification/notification.route";
 const router = Router();
 
-router.use("/auth", AuthRoutes);
-router.use("/companies", CompanyRoutes);
-router.use("/employees", EmployeeRoutes);
-router.use("/departments", DepartmentRoutes);
-router.use("/tasks", TaskRoutes);
-router.use("/task-comments", TaskCommentRoutes);
-router.use("/task-attachments", TaskAttachmentRoutes);
-router.use("/dashboard", DashboardRoutes);
+const moduleRoutes = [
+  {
+    path: "/auth",
+    route: AuthRoutes,
+  },
+  {
+    path: "/messages",
+    route: MessageRoutes,
+  },
+  {
+    path: "/offers",
+    route: OfferRoutes,
+  },
+  {
+    path: "/projects",
+    route: ProjectRoutes,
+  },
+  {
+    path: "/project-updates",
+    route: ProjectUpdateRoutes,
+  },
+  {
+    path: "/attachments",
+    route: AttachmentRoutes,
+  },
+  {
+    path: "/notifications",
+    route: NotificationRoutes,
+  },
+];
+
+moduleRoutes.forEach((route) => router.use(route.path, route.route));
 
 export default router;

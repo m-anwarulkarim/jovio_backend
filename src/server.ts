@@ -1,13 +1,44 @@
+import http from "http";
 import app from "./app";
 import { env } from "./config";
+import { Server } from "socket.io";
 
 const PORT = env.PORT || 5000;
 
-let server: ReturnType<typeof app.listen>;
+const httpServer = http.createServer(app);
+
+export const io = new Server(httpServer, {
+  cors: {
+    origin: env.FRONTEND_URL,
+    credentials: true,
+  },
+});
+
+io.on("connection", (socket) => {
+  console.log("🔌 User connected:", socket.id);
+
+  socket.on("join", (userId: string) => {
+    if (!userId) return;
+    socket.join(userId);
+    console.log(`👤 User joined personal room: ${userId}`);
+  });
+
+  socket.on("join_project", (projectId: string) => {
+    if (!projectId) return;
+    socket.join(`project:${projectId}`);
+    console.log(`📁 Joined project room: project:${projectId}`);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("❌ User disconnected:", socket.id);
+  });
+});
+
+let server: ReturnType<typeof httpServer.listen>;
 
 const startServer = async (): Promise<void> => {
   try {
-    server = app.listen(PORT, () => {
+    server = httpServer.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
     });

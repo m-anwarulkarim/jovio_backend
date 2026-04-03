@@ -1,43 +1,24 @@
 import { Router } from "express";
+import { toNodeHandler } from "better-auth/node";
 import { AuthController } from "./auth.controller";
-import validateRequest from "../../middlewares/validateRequest";
-import {
-  registerValidationSchema,
-  loginValidationSchema,
-  changePasswordValidationSchema,
-} from "./auth.validation";
-import { requireAuth } from "../../middlewares/auth.middleware";
-import { requireRole } from "../../middlewares/role.middleware";
+import { auth } from "../../lib/auth";
+import authGuard from "../../middlewares/auth.guard";
 
 const router = Router();
 
-router.post(
-  "/register",
-  validateRequest(registerValidationSchema),
-  AuthController.register,
-);
+// Better Auth built-in routes
+router.all("/better-auth/*splat", toNodeHandler(auth));
 
-router.post(
-  "/login",
-  validateRequest(loginValidationSchema),
-  AuthController.login,
-);
-
-router.post("/logout", requireAuth, AuthController.logout);
-
-router.get("/me", requireAuth, AuthController.getMe);
-
-router.post(
-  "/change-password",
-  requireAuth,
-  validateRequest(changePasswordValidationSchema),
-  AuthController.changePassword,
+// Custom auth routes
+router.get(
+  "/me",
+  authGuard("ADMIN", "EMPLOYEE", "CLIENT"),
+  AuthController.getMe,
 );
 router.get(
-  "/all",
-  requireAuth,
-  // requireRole("ADMIN"),
-  AuthController.getAllUsers,
+  "/session",
+  authGuard("ADMIN", "EMPLOYEE", "CLIENT"),
+  AuthController.getMySession,
 );
 
 export const AuthRoutes = router;

@@ -10,6 +10,8 @@ interface Env {
   CLOUDINARY_CLOUD_NAME: string;
   CLOUDINARY_API_KEY: string;
   CLOUDINARY_API_SECRET: string;
+  JWT_ACCESS_SECRET: string;
+  JWT_ACCESS_EXPIRES_IN: string;
 }
 
 // helper function (env validation)
@@ -31,4 +33,6 @@ export const env: Env = {
   CLOUDINARY_CLOUD_NAME: requireEnv("CLOUDINARY_CLOUD_NAME"),
   CLOUDINARY_API_KEY: requireEnv("CLOUDINARY_API_KEY"),
   CLOUDINARY_API_SECRET: requireEnv("CLOUDINARY_API_SECRET"),
+  JWT_ACCESS_SECRET: requireEnv("JWT_ACCESS_SECRET"),
+  JWT_ACCESS_EXPIRES_IN: requireEnv("JWT_ACCESS_EXPIRES_IN"),
 };
