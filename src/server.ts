@@ -17,16 +17,28 @@ export const io = new Server(httpServer, {
 io.on("connection", (socket) => {
   console.log("🔌 User connected:", socket.id);
 
+  // ✅ user personal room (IMPORTANT FIX)
   socket.on("join", (userId: string) => {
     if (!userId) return;
-    socket.join(userId);
-    console.log(`👤 User joined personal room: ${userId}`);
+
+    socket.join(`user:${userId}`); // 🔥 FIXED
+    console.log(`👤 User joined room: user:${userId}`);
   });
 
+  // ✅ project room
   socket.on("join_project", (projectId: string) => {
     if (!projectId) return;
+
     socket.join(`project:${projectId}`);
     console.log(`📁 Joined project room: project:${projectId}`);
+  });
+
+  // ✅ visitor room (NEW - PUBLIC CHAT FIX)
+  socket.on("join_visitor", (visitorId: string) => {
+    if (!visitorId) return;
+
+    socket.join(`visitor:${visitorId}`);
+    console.log(`🌐 Visitor joined room: visitor:${visitorId}`);
   });
 
   socket.on("disconnect", () => {

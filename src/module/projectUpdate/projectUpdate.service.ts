@@ -1,8 +1,8 @@
 import {
+  NotificationType,
   ProjectStatus,
   UserRole,
-  NotificationType,
-} from "../../../generated/prisma/enums";
+} from "../../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 import AppError from "../../utils/AppError";
 import type {
@@ -15,20 +15,43 @@ type TAuthUser = {
   role?: string | null;
 };
 
+const ensureAuthorizedUser = (user: TAuthUser) => {
+  if (!user?.id) {
+    throw new AppError(401, "Unauthorized", "UNAUTHORIZED");
+  }
+};
+
 const createProjectUpdateIntoDB = async (
   user: TAuthUser,
   payload: TCreateProjectUpdatePayload,
 ) => {
-  if (!user?.id) {
-    throw new AppError(401, "Unauthorized", "UNAUTHORIZED");
-  }
+  ensureAuthorizedUser(user);
 
-  // ✅ FIXED (no includes)
   if (user.role !== UserRole.ADMIN && user.role !== UserRole.EMPLOYEE) {
     throw new AppError(
       403,
       "Only admin or employee can create project update",
       "FORBIDDEN",
+    );
+  }
+
+  if (!payload?.projectId) {
+    throw new AppError(400, "projectId is required", "PROJECT_ID_REQUIRED");
+  }
+
+  if (!payload?.note?.trim()) {
+    throw new AppError(400, "note is required", "NOTE_REQUIRED");
+  }
+
+  if (
+    payload.progress !== undefined &&
+    payload.progress !== null &&
+    (payload.progress < 0 || payload.progress > 100)
+  ) {
+    throw new AppError(
+      400,
+      "progress must be between 0 and 100",
+      "INVALID_PROGRESS",
     );
   }
 
@@ -49,7 +72,17 @@ const createProjectUpdateIntoDB = async (
     throw new AppError(404, "Project not found", "PROJECT_NOT_FOUND");
   }
 
-  // employee access check
+  if (
+    project.status === ProjectStatus.COMPLETED ||
+    project.status === ProjectStatus.CANCELLED
+  ) {
+    throw new AppError(
+      400,
+      `Cannot add update to a ${project.status.toLowerCase()} project`,
+      "PROJECT_UPDATE_NOT_ALLOWED",
+    );
+  }
+
   if (
     user.role === UserRole.EMPLOYEE &&
     project.assignedEmployeeId !== user.id
@@ -61,88 +94,85 @@ const createProjectUpdateIntoDB = async (
     );
   }
 
-  const update = await prisma.projectUpdate.create({
-    data: {
-      projectId: payload.projectId,
-      userId: user.id,
-      progress: payload.progress ?? null,
-      note: payload.note,
-      issue: payload.issue ?? null,
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          role: true,
-          email: true,
-          image: true,
-        },
-      },
-      project: {
-        select: {
-          id: true,
-          projectId: true,
-          title: true,
-          status: true,
-          clientId: true,
-          assignedEmployeeId: true,
-        },
-      },
-      attachments: true,
-    },
-  });
-
-  // ✅ smart status update
-  const nextProjectStatus =
-    project.status === ProjectStatus.NEW ||
-    project.status === ProjectStatus.ASSIGNED
-      ? ProjectStatus.IN_PROGRESS
-      : project.status;
-
-  if (nextProjectStatus !== project.status) {
-    await prisma.project.update({
-      where: { id: payload.projectId },
+  const result = await prisma.$transaction(async (tx) => {
+    const update = await tx.projectUpdate.create({
       data: {
-        status: nextProjectStatus,
-        updatedAt: new Date(),
+        projectId: payload.projectId,
+        userId: user.id,
+        progress: payload.progress ?? null,
+        note: payload.note.trim(),
+        issue: payload.issue?.trim() || null,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            role: true,
+            email: true,
+            image: true,
+          },
+        },
+        project: {
+          select: {
+            id: true,
+            projectId: true,
+            title: true,
+            status: true,
+            clientId: true,
+            assignedEmployeeId: true,
+          },
+        },
+        attachments: true,
       },
     });
-  }
 
-  // ✅ notification (clean + enum)
-  await prisma.notification.create({
-    data: {
-      userId: project.clientId,
-      projectId: project.id,
-      type: NotificationType.PROJECT_UPDATE,
-      title: "Project updated",
-      body: `New update on project ${project.projectId}`,
-    },
-  });
+    const shouldMoveToInProgress =
+      project.status === ProjectStatus.NEW ||
+      project.status === ProjectStatus.ASSIGNED;
 
-  if (project.assignedByAdminId && project.assignedByAdminId !== user.id) {
-    await prisma.notification.create({
+    if (shouldMoveToInProgress) {
+      await tx.project.update({
+        where: { id: payload.projectId },
+        data: {
+          status: ProjectStatus.IN_PROGRESS,
+        },
+      });
+    }
+
+    await tx.notification.create({
       data: {
-        userId: project.assignedByAdminId,
+        userId: project.clientId,
         projectId: project.id,
         type: NotificationType.PROJECT_UPDATE,
-        title: "Project update received",
-        body: `A new update was added to project ${project.projectId}`,
+        title: "Project updated",
+        body: `New update on project ${project.projectId}`,
       },
     });
-  }
 
-  return update;
+    if (project.assignedByAdminId && project.assignedByAdminId !== user.id) {
+      await tx.notification.create({
+        data: {
+          userId: project.assignedByAdminId,
+          projectId: project.id,
+          type: NotificationType.PROJECT_UPDATE,
+          title: "Project update received",
+          body: `A new update was added to project ${project.projectId}`,
+        },
+      });
+    }
+
+    return update;
+  });
+
+  return result;
 };
 
 const getProjectUpdatesFromDB = async (
   user: TAuthUser,
   query: TGetProjectUpdatesQuery,
 ) => {
-  if (!user?.id) {
-    throw new AppError(401, "Unauthorized", "UNAUTHORIZED");
-  }
+  ensureAuthorizedUser(user);
 
   const whereClause: Record<string, unknown> = {};
 
@@ -173,8 +203,16 @@ const getProjectUpdatesFromDB = async (
 
     whereClause.projectId = query.projectId;
   } else {
+    if (user.role === UserRole.CLIENT) {
+      whereClause.project = {
+        clientId: user.id,
+      };
+    }
+
     if (user.role === UserRole.EMPLOYEE) {
-      whereClause.userId = user.id;
+      whereClause.project = {
+        assignedEmployeeId: user.id,
+      };
     }
   }
 
@@ -190,6 +228,7 @@ const getProjectUpdatesFromDB = async (
           name: true,
           role: true,
           image: true,
+          email: true,
         },
       },
       project: {
@@ -198,9 +237,15 @@ const getProjectUpdatesFromDB = async (
           projectId: true,
           title: true,
           status: true,
+          clientId: true,
+          assignedEmployeeId: true,
         },
       },
-      attachments: true,
+      attachments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
     },
   });
 
@@ -211,9 +256,7 @@ const getSingleProjectUpdateFromDB = async (
   user: TAuthUser,
   updateId: string,
 ) => {
-  if (!user?.id) {
-    throw new AppError(401, "Unauthorized", "UNAUTHORIZED");
-  }
+  ensureAuthorizedUser(user);
 
   const update = await prisma.projectUpdate.findUnique({
     where: { id: updateId },
@@ -237,7 +280,11 @@ const getSingleProjectUpdateFromDB = async (
           status: true,
         },
       },
-      attachments: true,
+      attachments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
     },
   });
 

@@ -6,6 +6,7 @@ import { ProjectRoutes } from "../module/project/project.route";
 import { ProjectUpdateRoutes } from "../module/projectUpdate/projectUpdate.route";
 import { AttachmentRoutes } from "../module/attachment/attachment.route";
 import { NotificationRoutes } from "../module/notification/notification.route";
+import { PublicMessageRoutes } from "../module/publicMessage/publicMessage.route";
 const router = Router();
 
 const moduleRoutes = [
@@ -36,6 +37,10 @@ const moduleRoutes = [
   {
     path: "/notifications",
     route: NotificationRoutes,
+  },
+  {
+    path: "/public-messages",
+    route: PublicMessageRoutes,
   },
 ];
 

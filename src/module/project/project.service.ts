@@ -1,4 +1,8 @@
-import { ProjectStatus, UserRole } from "../../../generated/prisma/client";
+import {
+  NotificationType,
+  ProjectStatus,
+  UserRole,
+} from "../../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 import AppError from "../../utils/AppError";
 import type {
@@ -12,10 +16,84 @@ type TAuthUser = {
   role?: string | null;
 };
 
-const getProjectsFromDB = async (user: TAuthUser, query: TGetProjectsQuery) => {
+const VALID_STATUS_TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
+  NEW: [
+    ProjectStatus.UNDER_REVIEW,
+    ProjectStatus.ASSIGNED,
+    ProjectStatus.CANCELLED,
+  ],
+  UNDER_REVIEW: [
+    ProjectStatus.ASSIGNED,
+    ProjectStatus.ON_HOLD,
+    ProjectStatus.CANCELLED,
+  ],
+  ASSIGNED: [
+    ProjectStatus.IN_PROGRESS,
+    ProjectStatus.ON_HOLD,
+    ProjectStatus.CANCELLED,
+  ],
+  IN_PROGRESS: [
+    ProjectStatus.WAITING_FOR_CLIENT,
+    ProjectStatus.REVIEW,
+    ProjectStatus.ON_HOLD,
+    ProjectStatus.CANCELLED,
+    ProjectStatus.COMPLETED,
+  ],
+  WAITING_FOR_CLIENT: [
+    ProjectStatus.IN_PROGRESS,
+    ProjectStatus.REVIEW,
+    ProjectStatus.ON_HOLD,
+    ProjectStatus.CANCELLED,
+  ],
+  REVIEW: [
+    ProjectStatus.IN_PROGRESS,
+    ProjectStatus.COMPLETED,
+    ProjectStatus.ON_HOLD,
+    ProjectStatus.CANCELLED,
+  ],
+  COMPLETED: [],
+  ON_HOLD: [
+    ProjectStatus.UNDER_REVIEW,
+    ProjectStatus.ASSIGNED,
+    ProjectStatus.IN_PROGRESS,
+    ProjectStatus.WAITING_FOR_CLIENT,
+    ProjectStatus.REVIEW,
+    ProjectStatus.CANCELLED,
+  ],
+  CANCELLED: [],
+};
+
+const ensureAuthorizedUser = (user: TAuthUser) => {
   if (!user?.id) {
     throw new AppError(401, "Unauthorized", "UNAUTHORIZED");
   }
+};
+
+const ensureValidStatusTransition = (
+  currentStatus: ProjectStatus,
+  nextStatus: ProjectStatus,
+) => {
+  if (currentStatus === nextStatus) {
+    throw new AppError(
+      400,
+      `Project is already in ${nextStatus} status`,
+      "STATUS_ALREADY_SET",
+    );
+  }
+
+  const allowedNextStatuses = VALID_STATUS_TRANSITIONS[currentStatus] || [];
+
+  if (!allowedNextStatuses.includes(nextStatus)) {
+    throw new AppError(
+      400,
+      `Invalid status transition from ${currentStatus} to ${nextStatus}`,
+      "INVALID_STATUS_TRANSITION",
+    );
+  }
+};
+
+const getProjectsFromDB = async (user: TAuthUser, query: TGetProjectsQuery) => {
+  ensureAuthorizedUser(user);
 
   const andConditions: Array<Record<string, unknown>> = [];
 
@@ -36,6 +114,12 @@ const getProjectsFromDB = async (user: TAuthUser, query: TGetProjectsQuery) => {
         },
         {
           description: {
+            contains: query.searchTerm,
+            mode: "insensitive",
+          },
+        },
+        {
+          serviceCategory: {
             contains: query.searchTerm,
             mode: "insensitive",
           },
@@ -62,7 +146,7 @@ const getProjectsFromDB = async (user: TAuthUser, query: TGetProjectsQuery) => {
     });
   }
 
-  const whereClause = andConditions.length > 0 ? { AND: andConditions } : {};
+  const whereClause = andConditions.length ? { AND: andConditions } : {};
 
   const projects = await prisma.project.findMany({
     where: whereClause,
@@ -109,6 +193,7 @@ const getProjectsFromDB = async (user: TAuthUser, query: TGetProjectsQuery) => {
           messages: true,
           updates: true,
           attachments: true,
+          notifications: true,
         },
       },
     },
@@ -118,9 +203,7 @@ const getProjectsFromDB = async (user: TAuthUser, query: TGetProjectsQuery) => {
 };
 
 const getSingleProjectFromDB = async (user: TAuthUser, projectId: string) => {
-  if (!user?.id) {
-    throw new AppError(401, "Unauthorized", "UNAUTHORIZED");
-  }
+  ensureAuthorizedUser(user);
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
@@ -140,6 +223,7 @@ const getSingleProjectFromDB = async (user: TAuthUser, projectId: string) => {
           email: true,
           phone: true,
           role: true,
+          image: true,
         },
       },
       assignedByAdmin: {
@@ -149,43 +233,32 @@ const getSingleProjectFromDB = async (user: TAuthUser, projectId: string) => {
           email: true,
         },
       },
-      offer: true,
-      messages: {
-        orderBy: {
-          createdAt: "asc",
-        },
-        include: {
-          sender: {
-            select: {
-              id: true,
-              name: true,
-              role: true,
-              image: true,
-            },
-          },
-          attachments: true,
+      offer: {
+        select: {
+          id: true,
+          offerId: true,
+          title: true,
+          description: true,
+          price: true,
+          deliveryDays: true,
+          revisions: true,
+          note: true,
+          status: true,
+          expiresAt: true,
+          createdAt: true,
         },
       },
-      updates: {
+      attachments: {
         orderBy: {
           createdAt: "desc",
         },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              role: true,
-              image: true,
-            },
-          },
-          attachments: true,
-        },
       },
-      attachments: true,
-      notifications: {
-        orderBy: {
-          createdAt: "desc",
+      _count: {
+        select: {
+          messages: true,
+          updates: true,
+          attachments: true,
+          notifications: true,
         },
       },
     },
@@ -214,16 +287,52 @@ const assignEmployeeIntoDB = async (
   projectId: string,
   payload: TAssignEmployeePayload,
 ) => {
-  if (!user?.id || user.role !== UserRole.ADMIN) {
+  ensureAuthorizedUser(user);
+
+  if (user.role !== UserRole.ADMIN) {
     throw new AppError(403, "Only admin can assign project", "FORBIDDEN");
+  }
+
+  if (!payload?.assignedEmployeeId) {
+    throw new AppError(
+      400,
+      "assignedEmployeeId is required",
+      "ASSIGNED_EMPLOYEE_ID_REQUIRED",
+    );
   }
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
+    select: {
+      id: true,
+      projectId: true,
+      clientId: true,
+      status: true,
+      assignedEmployeeId: true,
+    },
   });
 
   if (!project) {
     throw new AppError(404, "Project not found", "PROJECT_NOT_FOUND");
+  }
+
+  if (
+    project.status === ProjectStatus.COMPLETED ||
+    project.status === ProjectStatus.CANCELLED
+  ) {
+    throw new AppError(
+      400,
+      `Cannot assign employee to a ${project.status.toLowerCase()} project`,
+      "PROJECT_NOT_ASSIGNABLE",
+    );
+  }
+
+  if (project.assignedEmployeeId === payload.assignedEmployeeId) {
+    throw new AppError(
+      400,
+      "This employee is already assigned to the project",
+      "EMPLOYEE_ALREADY_ASSIGNED",
+    );
   }
 
   const employee = await prisma.user.findUnique({
@@ -233,6 +342,7 @@ const assignEmployeeIntoDB = async (
       role: true,
       isActive: true,
       name: true,
+      email: true,
     },
   });
 
@@ -256,52 +366,67 @@ const assignEmployeeIntoDB = async (
     );
   }
 
-  const updatedProject = await prisma.project.update({
-    where: { id: projectId },
-    data: {
-      assignedEmployeeId: payload.assignedEmployeeId,
-      assignedByAdminId: user.id,
-      status: ProjectStatus.ASSIGNED,
-      updatedAt: new Date(),
-    },
-    include: {
-      client: {
-        select: {
-          id: true,
-          name: true,
+  const result = await prisma.$transaction(async (tx) => {
+    const updatedProject = await tx.project.update({
+      where: { id: projectId },
+      data: {
+        assignedEmployeeId: payload.assignedEmployeeId,
+        assignedByAdminId: user.id,
+        status:
+          project.status === ProjectStatus.NEW ||
+          project.status === ProjectStatus.UNDER_REVIEW ||
+          project.status === ProjectStatus.ON_HOLD
+            ? ProjectStatus.ASSIGNED
+            : project.status,
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        assignedEmployee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        assignedByAdmin: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
         },
       },
-      assignedEmployee: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
+    });
+
+    await tx.notification.create({
+      data: {
+        userId: payload.assignedEmployeeId,
+        projectId: updatedProject.id,
+        type: NotificationType.PROJECT_ASSIGNED,
+        title: "New project assigned",
+        body: `You have been assigned to project ${updatedProject.projectId}`,
       },
-    },
+    });
+
+    await tx.notification.create({
+      data: {
+        userId: updatedProject.clientId,
+        projectId: updatedProject.id,
+        type: NotificationType.PROJECT_STATUS_CHANGED,
+        title: "Project assigned",
+        body: `Your project ${updatedProject.projectId} has been assigned to our team`,
+      },
+    });
+
+    return updatedProject;
   });
 
-  await prisma.notification.create({
-    data: {
-      userId: payload.assignedEmployeeId,
-      projectId: updatedProject.id,
-      type: "PROJECT_ASSIGNED",
-      title: "New project assigned",
-      body: `You have been assigned to project ${updatedProject.projectId}`,
-    },
-  });
-
-  await prisma.notification.create({
-    data: {
-      userId: updatedProject.clientId,
-      projectId: updatedProject.id,
-      type: "PROJECT_STATUS_CHANGED",
-      title: "Project assigned",
-      body: `Your project ${updatedProject.projectId} has been assigned to our team`,
-    },
-  });
-
-  return updatedProject;
+  return result;
 };
 
 const changeProjectStatusIntoDB = async (
@@ -309,7 +434,9 @@ const changeProjectStatusIntoDB = async (
   projectId: string,
   payload: TChangeProjectStatusPayload,
 ) => {
-  if (!user?.id || user.role !== UserRole.ADMIN) {
+  ensureAuthorizedUser(user);
+
+  if (user.role !== UserRole.ADMIN) {
     throw new AppError(
       403,
       "Only admin can change project status",
@@ -317,59 +444,94 @@ const changeProjectStatusIntoDB = async (
     );
   }
 
+  if (!payload?.status) {
+    throw new AppError(400, "status is required", "STATUS_REQUIRED");
+  }
+
   const project = await prisma.project.findUnique({
     where: { id: projectId },
+    select: {
+      id: true,
+      projectId: true,
+      clientId: true,
+      assignedEmployeeId: true,
+      status: true,
+    },
   });
 
   if (!project) {
     throw new AppError(404, "Project not found", "PROJECT_NOT_FOUND");
   }
 
-  const updatedProject = await prisma.project.update({
-    where: { id: projectId },
-    data: {
-      status: payload.status,
-      updatedAt: new Date(),
-    },
-    include: {
-      client: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      assignedEmployee: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
-  });
+  ensureValidStatusTransition(project.status, payload.status);
 
-  await prisma.notification.create({
-    data: {
-      userId: updatedProject.clientId,
-      projectId: updatedProject.id,
-      type: "PROJECT_STATUS_CHANGED",
-      title: "Project status updated",
-      body: `Your project ${updatedProject.projectId} is now ${payload.status}`,
-    },
-  });
-
-  if (updatedProject.assignedEmployeeId) {
-    await prisma.notification.create({
-      data: {
-        userId: updatedProject.assignedEmployeeId,
-        projectId: updatedProject.id,
-        type: "PROJECT_STATUS_CHANGED",
-        title: "Project status changed",
-        body: `Project ${updatedProject.projectId} is now ${payload.status}`,
-      },
-    });
+  if (
+    payload.status === ProjectStatus.IN_PROGRESS &&
+    !project.assignedEmployeeId
+  ) {
+    throw new AppError(
+      400,
+      "Cannot move project to IN_PROGRESS without assigning an employee",
+      "EMPLOYEE_ASSIGNMENT_REQUIRED",
+    );
   }
 
-  return updatedProject;
+  const result = await prisma.$transaction(async (tx) => {
+    const updatedProject = await tx.project.update({
+      where: { id: projectId },
+      data: {
+        status: payload.status,
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        assignedEmployee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        assignedByAdmin: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    await tx.notification.create({
+      data: {
+        userId: updatedProject.clientId,
+        projectId: updatedProject.id,
+        type: NotificationType.PROJECT_STATUS_CHANGED,
+        title: "Project status updated",
+        body: `Your project ${updatedProject.projectId} is now ${payload.status}`,
+      },
+    });
+
+    if (updatedProject.assignedEmployeeId) {
+      await tx.notification.create({
+        data: {
+          userId: updatedProject.assignedEmployeeId,
+          projectId: updatedProject.id,
+          type: NotificationType.PROJECT_STATUS_CHANGED,
+          title: "Project status changed",
+          body: `Project ${updatedProject.projectId} is now ${payload.status}`,
+        },
+      });
+    }
+
+    return updatedProject;
+  });
+
+  return result;
 };
 
 export const ProjectService = {

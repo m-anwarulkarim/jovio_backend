@@ -9,6 +9,8 @@ const app = express();
 
 app.use(express.json());
 
+app.set("trust proxy", true);
+
 app.use(
   cors({
     origin: env.FRONTEND_URL,

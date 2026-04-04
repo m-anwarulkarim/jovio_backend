@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -53,6 +54,11 @@ enum AttachmentType {
   LINK
 }
 
+enum PublicSenderType {
+  VISITOR
+  ADMIN
+}
+
 enum NotificationType {
   NEW_MESSAGE
   NEW_OFFER
@@ -64,65 +70,66 @@ enum NotificationType {
 }
 
 model User {
-  id             String    @id @default(cuid())
-  name           String
-  email          String?   @unique
-  phone          String?   @unique
-  password       String?
-  role           UserRole  @default(CLIENT)
+  id       String   @id @default(cuid())
+  name     String
+  email    String?  @unique
+  phone    String?  @unique
+  password String?
+  role     UserRole @default(CLIENT)
 
-  bio            String?
-  isActive       Boolean   @default(true)
-  emailVerified  Boolean   @default(false)
-  image          String?
+  bio           String?
+  isActive      Boolean @default(true)
+  emailVerified Boolean @default(false)
+  image         String?
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  clientOffers        Offer[]         @relation("ClientOffers")
-  clientProjects      Project[]       @relation("ClientProjects")
+  clientOffers   Offer[]   @relation("ClientOffers")
+  clientProjects Project[] @relation("ClientProjects")
 
-  adminOffers         Offer[]         @relation("AdminOffers")
-  assignedByProjects  Project[]       @relation("AssignedByAdminProjects")
+  adminOffers        Offer[]   @relation("AdminOffers")
+  assignedByProjects Project[] @relation("AssignedByAdminProjects")
 
-  assignedProjects    Project[]       @relation("AssignedEmployeeProjects")
-  projectUpdates      ProjectUpdate[]
+  assignedProjects Project[]       @relation("AssignedEmployeeProjects")
+  projectUpdates   ProjectUpdate[]
 
   sentMessages        Message[]
-  uploadedAttachments Attachment[]    @relation("UploadedByUser")
+  uploadedAttachments Attachment[]   @relation("UploadedByUser")
   notifications       Notification[]
+  publicMessages      PublicMessage[] @relation("AdminPublicMessages")
 
-  sessions            Session[]
-  accounts            Account[]
+  sessions Session[]
+  accounts Account[]
 
   @@index([role])
   @@map("users")
 }
 
 model Offer {
-  id            String       @id @default(cuid())
-  offerId       String       @unique
-  title         String
-  description   String
-  price         Decimal      @db.Decimal(10, 2)
-  deliveryDays  Int
-  revisions     Int?
-  note          String?
-  status        OfferStatus  @default(PENDING)
-  expiresAt     DateTime?
+  id           String      @id @default(cuid())
+  offerId      String      @unique
+  title        String
+  description  String
+  price        Decimal     @db.Decimal(10, 2)
+  deliveryDays Int
+  revisions    Int?
+  note         String?
+  status       OfferStatus @default(PENDING)
+  expiresAt    DateTime?
 
-  clientId      String
-  adminId       String
+  clientId String
+  adminId  String
 
-  acceptedAt    DateTime?
-  rejectedAt    DateTime?
+  acceptedAt DateTime?
+  rejectedAt DateTime?
 
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  client        User         @relation("ClientOffers", fields: [clientId], references: [id])
-  admin         User         @relation("AdminOffers", fields: [adminId], references: [id])
+  client        User           @relation("ClientOffers", fields: [clientId], references: [id])
+  admin         User           @relation("AdminOffers", fields: [adminId], references: [id])
   project       Project?
   attachments   Attachment[]
   notifications Notification[]
@@ -134,32 +141,32 @@ model Offer {
 }
 
 model Project {
-  id                 String         @id @default(cuid())
-  projectId          String         @unique
-  title              String
-  description        String
-  serviceCategory    String
-  budget             Decimal?       @db.Decimal(10, 2)
-  deadline           DateTime?
-  status             ProjectStatus  @default(NEW)
+  id              String        @id @default(cuid())
+  projectId       String        @unique
+  title           String
+  description     String
+  serviceCategory String
+  budget          Decimal?      @db.Decimal(10, 2)
+  deadline        DateTime?
+  status          ProjectStatus @default(NEW)
 
   clientId           String
   assignedEmployeeId String?
   assignedByAdminId  String?
-  offerId            String?        @unique
+  offerId            String? @unique
 
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  client             User           @relation("ClientProjects", fields: [clientId], references: [id])
-  assignedEmployee   User?          @relation("AssignedEmployeeProjects", fields: [assignedEmployeeId], references: [id])
-  assignedByAdmin    User?          @relation("AssignedByAdminProjects", fields: [assignedByAdminId], references: [id])
+  client           User  @relation("ClientProjects", fields: [clientId], references: [id])
+  assignedEmployee User? @relation("AssignedEmployeeProjects", fields: [assignedEmployeeId], references: [id])
+  assignedByAdmin  User? @relation("AssignedByAdminProjects", fields: [assignedByAdminId], references: [id])
 
-  offer              Offer?         @relation(fields: [offerId], references: [id])
-  messages           Message[]
-  updates            ProjectUpdate[]
-  attachments        Attachment[]
-  notifications      Notification[]
+  offer         Offer?          @relation(fields: [offerId], references: [id])
+  messages      Message[]
+  updates       ProjectUpdate[]
+  attachments   Attachment[]
+  notifications Notification[]
 
   @@index([clientId])
   @@index([assignedEmployeeId])
@@ -170,16 +177,16 @@ model Project {
 }
 
 model ProjectUpdate {
-  id          String         @id @default(cuid())
-  projectId   String
-  userId      String
-  progress    Int?
-  note        String
-  issue       String?
-  createdAt   DateTime       @default(now())
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  progress  Int?
+  note      String
+  issue     String?
+  createdAt DateTime @default(now())
 
-  project     Project        @relation(fields: [projectId], references: [id])
-  user        User           @relation(fields: [userId], references: [id])
+  project     Project      @relation(fields: [projectId], references: [id])
+  user        User         @relation(fields: [userId], references: [id])
   attachments Attachment[]
 
   @@index([projectId])
@@ -188,17 +195,17 @@ model ProjectUpdate {
 }
 
 model Message {
-  id          String            @id @default(cuid())
-  projectId   String?
-  senderId    String
-  senderType  MessageSenderType
-  type        MessageType       @default(TEXT)
-  text        String
-  isRead      Boolean           @default(false)
-  createdAt   DateTime          @default(now())
+  id         String            @id @default(cuid())
+  projectId  String?
+  senderId   String
+  senderType MessageSenderType
+  type       MessageType       @default(TEXT)
+  text       String
+  isRead     Boolean           @default(false)
+  createdAt  DateTime          @default(now())
 
-  project     Project?          @relation(fields: [projectId], references: [id])
-  sender      User              @relation(fields: [senderId], references: [id])
+  project     Project?     @relation(fields: [projectId], references: [id])
+  sender      User         @relation(fields: [senderId], references: [id])
   attachments Attachment[]
 
   @@index([projectId])
@@ -207,23 +214,42 @@ model Message {
   @@map("messages")
 }
 
+model PublicMessage {
+  id          String              @id @default(cuid())
+  visitorId   String
+  adminId     String?
+  senderType  PublicSenderType
+  text        String
+  ipAddress   String?
+  isRead      Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  admin       User?               @relation("AdminPublicMessages", fields: [adminId], references: [id])
+
+  @@index([visitorId])
+  @@index([adminId])
+  @@index([isRead])
+  @@map("public_messages")
+}
+
 model Attachment {
-  id              String          @id @default(cuid())
-  type            AttachmentType
-  url             String
-  uploadedById    String?
-  createdAt       DateTime        @default(now())
+  id           String         @id @default(cuid())
+  type         AttachmentType
+  url          String
+  uploadedById String?
+  createdAt    DateTime       @default(now())
 
   messageId       String?
   projectId       String?
   offerId         String?
   projectUpdateId String?
 
-  message         Message?        @relation(fields: [messageId], references: [id])
-  project         Project?        @relation(fields: [projectId], references: [id])
-  offer           Offer?          @relation(fields: [offerId], references: [id])
-  projectUpdate   ProjectUpdate?  @relation(fields: [projectUpdateId], references: [id])
-  uploadedBy      User?           @relation("UploadedByUser", fields: [uploadedById], references: [id])
+  message       Message?       @relation(fields: [messageId], references: [id])
+  project       Project?       @relation(fields: [projectId], references: [id])
+  offer         Offer?         @relation(fields: [offerId], references: [id])
+  projectUpdate ProjectUpdate? @relation(fields: [projectUpdateId], references: [id])
+  uploadedBy    User?          @relation("UploadedByUser", fields: [uploadedById], references: [id])
 
   @@index([uploadedById])
   @@index([messageId])
@@ -234,19 +260,19 @@ model Attachment {
 }
 
 model Notification {
-  id         String            @id @default(cuid())
-  userId     String
-  offerId    String?
-  projectId  String?
-  type       NotificationType
-  title      String
-  body       String?
-  isRead     Boolean           @default(false)
-  createdAt  DateTime          @default(now())
+  id        String           @id @default(cuid())
+  userId    String
+  offerId   String?
+  projectId String?
+  type      NotificationType
+  title     String
+  body      String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
 
-  user       User              @relation(fields: [userId], references: [id])
-  offer      Offer?            @relation(fields: [offerId], references: [id])
-  project    Project?          @relation(fields: [projectId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  offer   Offer?   @relation(fields: [offerId], references: [id])
+  project Project? @relation(fields: [projectId], references: [id])
 
   @@index([userId])
   @@index([offerId])
@@ -256,23 +282,50 @@ model Notification {
 }
 
 model Session {
-  id         String    @id
-  expiresAt  DateTime
-  token      String    @unique
-  userId     String
-  user       User      @relation(fields: [userId], references: [id])
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
 
   @@index([userId])
   @@map("session")
 }
 
 model Account {
-  id         String    @id
+  id         String @id
   accountId  String
   providerId String
   userId     String
-  user       User      @relation(fields: [userId], references: [id])
+  user       User   @relation(fields: [userId], references: [id])
+
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@index([userId])
   @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
 }
