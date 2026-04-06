@@ -2,6 +2,7 @@ import {
   MessageConversationType,
   MessageSenderType,
   MessageType,
+  NotificationType,
   UserRole,
 } from "../../../generated/prisma/enums";
 import { prisma } from "../../lib/prisma";
@@ -96,6 +97,48 @@ const validateConversationAccess = async (
   throw new AppError(403, "Forbidden", "FORBIDDEN");
 };
 
+const createNotificationForUsers = async ({
+  receiverIds,
+  projectId,
+  projectCode,
+  conversationType,
+  senderRole,
+}: {
+  receiverIds: string[];
+  projectId: string;
+  projectCode: string;
+  conversationType: TConversationType;
+  senderRole?: string | null;
+}) => {
+  const uniqueReceiverIds = [...new Set(receiverIds.filter(Boolean))];
+
+  if (!uniqueReceiverIds.length) {
+    return;
+  }
+
+  const conversationLabel =
+    conversationType === "ADMIN_CLIENT"
+      ? "admin-client conversation"
+      : "admin-employee conversation";
+
+  const senderLabel =
+    senderRole === UserRole.ADMIN
+      ? "Admin"
+      : senderRole === UserRole.EMPLOYEE
+        ? "Employee"
+        : "Client";
+
+  await prisma.notification.createMany({
+    data: uniqueReceiverIds.map((userId) => ({
+      userId,
+      projectId,
+      type: NotificationType.NEW_MESSAGE,
+      title: "New message received",
+      body: `${senderLabel} sent a new message in ${conversationLabel} for project ${projectCode}`,
+    })),
+  });
+};
+
 const createMessageIntoDB = async (
   user: TAuthUser,
   payload: TCreateMessagePayload,
@@ -178,6 +221,36 @@ const createMessageIntoDB = async (
     data: {
       updatedAt: new Date(),
     },
+  });
+
+  const notificationReceiverIds: string[] = [];
+
+  if (conversationType === "ADMIN_CLIENT") {
+    if (project.clientId && project.clientId !== user.id) {
+      notificationReceiverIds.push(project.clientId);
+    }
+
+    if (project.assignedByAdminId && project.assignedByAdminId !== user.id) {
+      notificationReceiverIds.push(project.assignedByAdminId);
+    }
+  }
+
+  if (conversationType === "ADMIN_EMPLOYEE") {
+    if (project.assignedEmployeeId && project.assignedEmployeeId !== user.id) {
+      notificationReceiverIds.push(project.assignedEmployeeId);
+    }
+
+    if (project.assignedByAdminId && project.assignedByAdminId !== user.id) {
+      notificationReceiverIds.push(project.assignedByAdminId);
+    }
+  }
+
+  await createNotificationForUsers({
+    receiverIds: notificationReceiverIds,
+    projectId: project.id,
+    projectCode: project.projectId,
+    conversationType,
+    senderRole: user.role,
   });
 
   const roomKey = `project:${projectId}:${conversationType}`;
@@ -320,7 +393,7 @@ const markMessageAsReadIntoDB = async (user: TAuthUser, messageId: string) => {
   await validateConversationAccess(
     user,
     message.projectId,
-    message.conversationType,
+    message.conversationType as TConversationType,
   );
 
   const updatedMessage = await prisma.message.update({
@@ -351,8 +424,7 @@ const markMessageAsReadIntoDB = async (user: TAuthUser, messageId: string) => {
     },
   });
 
-  const conversationType = updatedMessage.conversationType;
-  const roomKey = `project:${updatedMessage.projectId}:${conversationType}`;
+  const roomKey = `project:${updatedMessage.projectId}:${updatedMessage.conversationType}`;
 
   io.to(roomKey).emit("message:read", {
     messageId: updatedMessage.id,
