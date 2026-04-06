@@ -1,7 +1,23 @@
 import type { Request, Response } from "express";
 import catchAsync from "../../utils/catchAsync";
 import sendResponse from "../../utils/sendResponse";
+import { PublicVisitorSession } from "../../utils/publicVisitorSession";
 import { PublicMessageService } from "./publicMessage.service";
+
+const getClientIp = (req: Request) => {
+  const forwardedFor = req.headers["x-forwarded-for"];
+
+  if (typeof forwardedFor === "string") {
+    const ip = forwardedFor.split(",")[0];
+    return ip ? ip.trim() : "UNKNOWN_IP";
+  }
+
+  if (Array.isArray(forwardedFor) && forwardedFor.length > 0) {
+    return String(forwardedFor[0]).trim();
+  }
+
+  return req.ip ?? req.socket.remoteAddress ?? "UNKNOWN_IP";
+};
 
 const createVisitorMessage = catchAsync(async (req: Request, res: Response) => {
   const result = await PublicMessageService.createVisitorMessageIntoDB(
@@ -32,23 +48,34 @@ const createAdminReply = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getVisitorMessages = catchAsync(async (req: Request, res: Response) => {
-  const { visitorId } = req.params;
+  const session = PublicVisitorSession.getVisitorSessionFromRequest(req);
 
   const result = await PublicMessageService.getVisitorMessagesFromDB(
-    visitorId as string,
+    session?.visitorId || "",
+    {
+      page: Number(req.query.page),
+      limit: Number(req.query.limit),
+    },
   );
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
     message: "Messages retrieved successfully",
-    data: result,
+    data: {
+      visitor: session,
+      ...result,
+    },
   });
 });
 
 const getAllPublicMessages = catchAsync(async (req: Request, res: Response) => {
   const result = await PublicMessageService.getAllPublicMessagesFromDB(
     req.user!,
+    {
+      page: Number(req.query.page),
+      limit: Number(req.query.limit),
+    },
   );
 
   sendResponse(res, {
@@ -67,6 +94,10 @@ const getSingleVisitorConversation = catchAsync(
       await PublicMessageService.getSingleVisitorConversationFromDB(
         req.user!,
         visitorId as string,
+        {
+          page: Number(req.query.page),
+          limit: Number(req.query.limit),
+        },
       );
 
     sendResponse(res, {
@@ -94,6 +125,23 @@ const markPublicMessageAsRead = catchAsync(
   },
 );
 
+const markVisitorConversationAsRead = catchAsync(
+  async (req: Request, res: Response) => {
+    const result =
+      await PublicMessageService.markVisitorConversationAsReadIntoDB(
+        req.user!,
+        req.params.visitorId as string,
+      );
+
+    sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "Conversation marked as read successfully",
+      data: result,
+    });
+  },
+);
+
 export const PublicMessageController = {
   createVisitorMessage,
   createAdminReply,
@@ -101,4 +149,5 @@ export const PublicMessageController = {
   getAllPublicMessages,
   getSingleVisitorConversation,
   markPublicMessageAsRead,
+  markVisitorConversationAsRead,
 };

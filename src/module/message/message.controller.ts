@@ -15,11 +15,12 @@ const createMessage = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getMessages = catchAsync(async (req: Request, res: Response) => {
-  const { projectId } = req.query;
+  const { projectId, conversationType } = req.query;
 
   const result = await MessageService.getMessagesFromDB(
     req.user!,
-    projectId as string | undefined,
+    projectId as string,
+    conversationType as "ADMIN_CLIENT" | "ADMIN_EMPLOYEE",
   );
 
   sendResponse(res, {

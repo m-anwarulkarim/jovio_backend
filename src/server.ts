@@ -17,29 +17,43 @@ export const io = new Server(httpServer, {
 io.on("connection", (socket) => {
   console.log("🔌 User connected:", socket.id);
 
-  // ✅ user personal room (IMPORTANT FIX)
   socket.on("join", (userId: string) => {
     if (!userId) return;
 
-    socket.join(`user:${userId}`); // 🔥 FIXED
+    socket.join(`user:${userId}`);
     console.log(`👤 User joined room: user:${userId}`);
   });
 
-  // ✅ project room
-  socket.on("join_project", (projectId: string) => {
-    if (!projectId) return;
+  socket.on(
+    "join_project",
+    (payload: { projectId: string; conversationType?: string }) => {
+      if (!payload?.projectId) return;
 
-    socket.join(`project:${projectId}`);
-    console.log(`📁 Joined project room: project:${projectId}`);
-  });
+      if (payload.conversationType) {
+        socket.join(`project:${payload.projectId}:${payload.conversationType}`);
+        console.log(
+          `📁 Joined project room: project:${payload.projectId}:${payload.conversationType}`,
+        );
+        return;
+      }
 
-  // ✅ visitor room (NEW - PUBLIC CHAT FIX)
-  socket.on("join_visitor", (visitorId: string) => {
-    if (!visitorId) return;
+      socket.join(`project:${payload.projectId}`);
+      console.log(`📁 Joined project room: project:${payload.projectId}`);
+    },
+  );
 
-    socket.join(`visitor:${visitorId}`);
-    console.log(`🌐 Visitor joined room: visitor:${visitorId}`);
-  });
+  socket.on(
+    "join_visitor",
+    (payload: string | { visitorId?: string; token?: string }) => {
+      const visitorId =
+        typeof payload === "string" ? payload : payload?.visitorId;
+
+      if (!visitorId) return;
+
+      socket.join(`visitor:${visitorId}`);
+      console.log(`🌐 Visitor joined room: visitor:${visitorId}`);
+    },
+  );
 
   socket.on("disconnect", () => {
     console.log("❌ User disconnected:", socket.id);

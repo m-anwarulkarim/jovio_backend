@@ -1,16 +1,25 @@
 import { Router } from "express";
 import { PublicMessageController } from "./publicMessage.controller";
 import authGuard from "../../middlewares/auth.guard";
+import publicMessageRateLimit from "../../middlewares/publicMessageRateLimit";
 
 const router = Router();
 
 // Public visitor sends message
-router.post("/", PublicMessageController.createVisitorMessage);
+router.post(
+  "/",
+  publicMessageRateLimit,
+  PublicMessageController.createVisitorMessage,
+);
 
-// Public visitor gets own chat by visitorId
-router.get("/visitor/:visitorId", PublicMessageController.getVisitorMessages);
+// Public visitor gets own chat from secure cookie session
+router.get(
+  "/visitor/me",
+  publicMessageRateLimit,
+  PublicMessageController.getVisitorMessages,
+);
 
-// Admin gets all public messages
+// Admin gets grouped inbox
 router.get(
   "/admin/all",
   authGuard("ADMIN"),
@@ -31,11 +40,18 @@ router.post(
   PublicMessageController.createAdminReply,
 );
 
-// Admin marks message as read
+// Admin marks single message as read
 router.patch(
   "/:id/read",
   authGuard("ADMIN"),
   PublicMessageController.markPublicMessageAsRead,
+);
+
+// Admin marks whole conversation as read
+router.patch(
+  "/admin/:visitorId/read-all",
+  authGuard("ADMIN"),
+  PublicMessageController.markVisitorConversationAsRead,
 );
 
 export const PublicMessageRoutes = router;

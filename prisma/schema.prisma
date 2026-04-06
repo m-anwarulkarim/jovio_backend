@@ -7,7 +7,6 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
-
 enum UserRole {
   ADMIN
   EMPLOYEE
@@ -48,6 +47,11 @@ enum MessageType {
   SYSTEM
 }
 
+enum MessageConversationType {
+  ADMIN_CLIENT
+  ADMIN_EMPLOYEE
+}
+
 enum AttachmentType {
   IMAGE
   FILE
@@ -85,18 +89,16 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
   clientOffers   Offer[]   @relation("ClientOffers")
   clientProjects Project[] @relation("ClientProjects")
 
   adminOffers        Offer[]   @relation("AdminOffers")
   assignedByProjects Project[] @relation("AssignedByAdminProjects")
 
-  assignedProjects Project[]       @relation("AssignedEmployeeProjects")
-  projectUpdates   ProjectUpdate[]
-
+  assignedProjects    Project[]       @relation("AssignedEmployeeProjects")
+  projectUpdates      ProjectUpdate[]
   sentMessages        Message[]
-  uploadedAttachments Attachment[]   @relation("UploadedByUser")
+  uploadedAttachments Attachment[]    @relation("UploadedByUser")
   notifications       Notification[]
   publicMessages      PublicMessage[] @relation("AdminPublicMessages")
 
@@ -195,37 +197,40 @@ model ProjectUpdate {
 }
 
 model Message {
-  id         String            @id @default(cuid())
-  projectId  String?
-  senderId   String
-  senderType MessageSenderType
-  type       MessageType       @default(TEXT)
-  text       String
-  isRead     Boolean           @default(false)
-  createdAt  DateTime          @default(now())
+  id               String                  @id @default(cuid())
+  projectId        String
+  senderId         String
+  senderType       MessageSenderType
+  conversationType MessageConversationType
+  type             MessageType             @default(TEXT)
+  text             String
+  isRead           Boolean                 @default(false)
+  createdAt        DateTime                @default(now())
 
-  project     Project?     @relation(fields: [projectId], references: [id])
+  project     Project      @relation(fields: [projectId], references: [id])
   sender      User         @relation(fields: [senderId], references: [id])
   attachments Attachment[]
 
   @@index([projectId])
   @@index([senderId])
   @@index([isRead])
+  @@index([conversationType])
+  @@index([projectId, conversationType])
   @@map("messages")
 }
 
 model PublicMessage {
-  id          String              @id @default(cuid())
+  id          String           @id @default(cuid())
   visitorId   String
   adminId     String?
   senderType  PublicSenderType
   text        String
   ipAddress   String?
-  isRead      Boolean             @default(false)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  isRead      Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  admin       User?               @relation("AdminPublicMessages", fields: [adminId], references: [id])
+  admin User? @relation("AdminPublicMessages", fields: [adminId], references: [id])
 
   @@index([visitorId])
   @@index([adminId])
@@ -311,8 +316,8 @@ model Account {
   refreshTokenExpiresAt DateTime?
   scope                 String?
   password              String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   @@index([userId])
   @@map("account")

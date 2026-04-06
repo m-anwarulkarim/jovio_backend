@@ -1,11 +1,15 @@
 import {
+  MessageConversationType,
   MessageSenderType,
   MessageType,
   UserRole,
 } from "../../../generated/prisma/enums";
 import { prisma } from "../../lib/prisma";
 import AppError from "../../utils/AppError";
-import type { TCreateMessagePayload } from "./message.interface";
+import type {
+  TConversationType,
+  TCreateMessagePayload,
+} from "./message.interface";
 import { io } from "../../server";
 
 type TAuthUser = {
@@ -13,54 +17,62 @@ type TAuthUser = {
   role?: string | null;
 };
 
-const createMessageIntoDB = async (
+const getConversationTypeEnum = (conversationType: TConversationType) => {
+  if (conversationType === "ADMIN_CLIENT") {
+    return MessageConversationType.ADMIN_CLIENT;
+  }
+
+  return MessageConversationType.ADMIN_EMPLOYEE;
+};
+
+const validateConversationAccess = async (
   user: TAuthUser,
-  payload: TCreateMessagePayload,
+  projectId: string,
+  conversationType: TConversationType,
 ) => {
-  const { projectId, text, type } = payload;
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: {
+      id: true,
+      projectId: true,
+      title: true,
+      clientId: true,
+      assignedEmployeeId: true,
+      assignedByAdminId: true,
+    },
+  });
 
-  if (!user?.id) {
-    throw new AppError(401, "Unauthorized", "UNAUTHORIZED");
+  if (!project) {
+    throw new AppError(404, "Project not found", "PROJECT_NOT_FOUND");
   }
 
-  if (!text || !text.trim()) {
-    throw new AppError(
-      400,
-      "Message text is required",
-      "MESSAGE_TEXT_REQUIRED",
-    );
-  }
-
-  let project: {
-    id: string;
-    projectId: string;
-    title: string;
-    clientId: string;
-    assignedEmployeeId: string | null;
-    assignedByAdminId: string | null;
-  } | null = null;
-
-  if (projectId) {
-    project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: {
-        id: true,
-        projectId: true,
-        title: true,
-        clientId: true,
-        assignedEmployeeId: true,
-        assignedByAdminId: true,
-      },
-    });
-
-    if (!project) {
-      throw new AppError(404, "Project not found", "PROJECT_NOT_FOUND");
+  if (conversationType === "ADMIN_CLIENT") {
+    if (user.role === UserRole.CLIENT && project.clientId !== user.id) {
+      throw new AppError(403, "Forbidden", "FORBIDDEN");
     }
 
-    if (user.role === UserRole.CLIENT && project.clientId !== user.id) {
+    if (user.role === UserRole.EMPLOYEE) {
       throw new AppError(
         403,
-        "You cannot message on this project",
+        "Employee cannot access admin-client conversation",
+        "FORBIDDEN",
+      );
+    }
+
+    if (user.role === UserRole.ADMIN) {
+      return project;
+    }
+
+    if (user.role === UserRole.CLIENT) {
+      return project;
+    }
+  }
+
+  if (conversationType === "ADMIN_EMPLOYEE") {
+    if (user.role === UserRole.CLIENT) {
+      throw new AppError(
+        403,
+        "Client cannot access admin-employee conversation",
         "FORBIDDEN",
       );
     }
@@ -75,7 +87,50 @@ const createMessageIntoDB = async (
         "FORBIDDEN",
       );
     }
+
+    if (user.role === UserRole.ADMIN || user.role === UserRole.EMPLOYEE) {
+      return project;
+    }
   }
+
+  throw new AppError(403, "Forbidden", "FORBIDDEN");
+};
+
+const createMessageIntoDB = async (
+  user: TAuthUser,
+  payload: TCreateMessagePayload,
+) => {
+  const { projectId, text, type, conversationType } = payload;
+
+  if (!user?.id) {
+    throw new AppError(401, "Unauthorized", "UNAUTHORIZED");
+  }
+
+  if (!projectId) {
+    throw new AppError(400, "Project id is required", "PROJECT_ID_REQUIRED");
+  }
+
+  if (!conversationType) {
+    throw new AppError(
+      400,
+      "Conversation type is required",
+      "CONVERSATION_TYPE_REQUIRED",
+    );
+  }
+
+  if (!text || !text.trim()) {
+    throw new AppError(
+      400,
+      "Message text is required",
+      "MESSAGE_TEXT_REQUIRED",
+    );
+  }
+
+  const project = await validateConversationAccess(
+    user,
+    projectId,
+    conversationType,
+  );
 
   const senderTypeMap: Record<string, MessageSenderType> = {
     ADMIN: MessageSenderType.ADMIN,
@@ -85,10 +140,11 @@ const createMessageIntoDB = async (
 
   const message = await prisma.message.create({
     data: {
-      projectId: projectId || null,
+      projectId,
       senderId: user.id,
       senderType:
         senderTypeMap[user.role || "CLIENT"] || MessageSenderType.CLIENT,
+      conversationType: getConversationTypeEnum(conversationType),
       type: (type as MessageType) || MessageType.TEXT,
       text: text.trim(),
     },
@@ -117,23 +173,21 @@ const createMessageIntoDB = async (
     },
   });
 
-  if (projectId) {
-    await prisma.project.update({
-      where: { id: projectId },
-      data: {
-        updatedAt: new Date(),
-      },
-    });
-  }
+  await prisma.project.update({
+    where: { id: projectId },
+    data: {
+      updatedAt: new Date(),
+    },
+  });
 
-  // ===== Real-time emit start =====
-  if (projectId) {
-    io.to(`project:${projectId}`).emit("message:new", message);
-  }
+  const roomKey = `project:${projectId}:${conversationType}`;
+
+  io.to(roomKey).emit("message:new", message);
 
   io.to(`user:${message.senderId}`).emit("message:new", message);
 
   if (
+    conversationType === "ADMIN_CLIENT" &&
     message.project?.clientId &&
     message.project.clientId !== message.senderId
   ) {
@@ -141,6 +195,18 @@ const createMessageIntoDB = async (
   }
 
   if (
+    conversationType === "ADMIN_CLIENT" &&
+    message.project?.assignedByAdminId &&
+    message.project.assignedByAdminId !== message.senderId
+  ) {
+    io.to(`user:${message.project.assignedByAdminId}`).emit(
+      "message:new",
+      message,
+    );
+  }
+
+  if (
+    conversationType === "ADMIN_EMPLOYEE" &&
     message.project?.assignedEmployeeId &&
     message.project.assignedEmployeeId !== message.senderId
   ) {
@@ -151,6 +217,7 @@ const createMessageIntoDB = async (
   }
 
   if (
+    conversationType === "ADMIN_EMPLOYEE" &&
     message.project?.assignedByAdminId &&
     message.project.assignedByAdminId !== message.senderId
   ) {
@@ -159,53 +226,38 @@ const createMessageIntoDB = async (
       message,
     );
   }
-  // ===== Real-time emit end =====
 
   return message;
 };
 
-const getMessagesFromDB = async (user: TAuthUser, projectId?: string) => {
+const getMessagesFromDB = async (
+  user: TAuthUser,
+  projectId: string,
+  conversationType: TConversationType,
+) => {
   if (!user?.id) {
     throw new AppError(401, "Unauthorized", "UNAUTHORIZED");
   }
 
-  const whereClause: {
-    projectId?: string;
-    senderId?: string;
-  } = {};
-
-  if (projectId) {
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: {
-        id: true,
-        clientId: true,
-        assignedEmployeeId: true,
-      },
-    });
-
-    if (!project) {
-      throw new AppError(404, "Project not found", "PROJECT_NOT_FOUND");
-    }
-
-    if (user.role === UserRole.CLIENT && project.clientId !== user.id) {
-      throw new AppError(403, "Forbidden", "FORBIDDEN");
-    }
-
-    if (
-      user.role === UserRole.EMPLOYEE &&
-      project.assignedEmployeeId !== user.id
-    ) {
-      throw new AppError(403, "Forbidden", "FORBIDDEN");
-    }
-
-    whereClause.projectId = projectId;
-  } else if (user.role === UserRole.CLIENT) {
-    whereClause.senderId = user.id;
+  if (!projectId) {
+    throw new AppError(400, "Project id is required", "PROJECT_ID_REQUIRED");
   }
 
+  if (!conversationType) {
+    throw new AppError(
+      400,
+      "Conversation type is required",
+      "CONVERSATION_TYPE_REQUIRED",
+    );
+  }
+
+  await validateConversationAccess(user, projectId, conversationType);
+
   const messages = await prisma.message.findMany({
-    where: whereClause,
+    where: {
+      projectId,
+      conversationType: getConversationTypeEnum(conversationType),
+    },
     orderBy: {
       createdAt: "asc",
     },
@@ -265,18 +317,11 @@ const markMessageAsReadIntoDB = async (user: TAuthUser, messageId: string) => {
     throw new AppError(404, "Message not found", "MESSAGE_NOT_FOUND");
   }
 
-  if (message.project) {
-    if (user.role === UserRole.CLIENT && message.project.clientId !== user.id) {
-      throw new AppError(403, "Forbidden", "FORBIDDEN");
-    }
-
-    if (
-      user.role === UserRole.EMPLOYEE &&
-      message.project.assignedEmployeeId !== user.id
-    ) {
-      throw new AppError(403, "Forbidden", "FORBIDDEN");
-    }
-  }
+  await validateConversationAccess(
+    user,
+    message.projectId,
+    message.conversationType,
+  );
 
   const updatedMessage = await prisma.message.update({
     where: { id: messageId },
@@ -306,23 +351,24 @@ const markMessageAsReadIntoDB = async (user: TAuthUser, messageId: string) => {
     },
   });
 
-  // ===== Real-time read emit =====
-  if (updatedMessage.projectId) {
-    io.to(`project:${updatedMessage.projectId}`).emit("message:read", {
-      messageId: updatedMessage.id,
-      isRead: updatedMessage.isRead,
-      projectId: updatedMessage.projectId,
-      readByUserId: user.id,
-    });
-  }
+  const conversationType = updatedMessage.conversationType;
+  const roomKey = `project:${updatedMessage.projectId}:${conversationType}`;
+
+  io.to(roomKey).emit("message:read", {
+    messageId: updatedMessage.id,
+    isRead: updatedMessage.isRead,
+    projectId: updatedMessage.projectId,
+    conversationType: updatedMessage.conversationType,
+    readByUserId: user.id,
+  });
 
   io.to(`user:${updatedMessage.senderId}`).emit("message:read", {
     messageId: updatedMessage.id,
     isRead: updatedMessage.isRead,
     projectId: updatedMessage.projectId,
+    conversationType: updatedMessage.conversationType,
     readByUserId: user.id,
   });
-  // ===== Real-time read emit end =====
 
   return updatedMessage;
 };
