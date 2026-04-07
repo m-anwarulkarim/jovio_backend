@@ -3,6 +3,21 @@ import { AttachmentService } from "./attachment.service";
 import catchAsync from "../../utils/catchAsync";
 import sendResponse from "../../utils/sendResponse";
 
+const uploadAttachment = catchAsync(async (req: Request, res: Response) => {
+  const result = await AttachmentService.uploadAttachmentIntoDB(
+    req.user!,
+    req.file,
+    req.body,
+  );
+
+  sendResponse(res, {
+    statusCode: 201,
+    success: true,
+    message: "Attachment uploaded successfully",
+    data: result,
+  });
+});
+
 const createAttachment = catchAsync(async (req: Request, res: Response) => {
   const result = await AttachmentService.createAttachmentIntoDB(
     req.user!,
@@ -60,6 +75,7 @@ const deleteAttachment = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const AttachmentController = {
+  uploadAttachment,
   createAttachment,
   getAttachments,
   getSingleAttachment,

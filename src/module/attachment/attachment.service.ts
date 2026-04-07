@@ -1,17 +1,17 @@
-import { UserRole } from "../../../generated/prisma/client";
+import { UserRole, AttachmentType } from "../../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 import AppError from "../../utils/AppError";
 import type {
   TCreateAttachmentPayload,
   TGetAttachmentsQuery,
 } from "./attachment.interface";
+import cloudinary from "../../config/cloudinary";
 
 type TAuthUser = {
   id: string;
   role?: string | null;
 };
 
-// 🔥 common permission check helper
 const checkProjectAccess = (
   user: TAuthUser,
   project: {
@@ -19,8 +19,9 @@ const checkProjectAccess = (
     assignedEmployeeId?: string | null;
   } | null,
 ) => {
-  if (!project)
+  if (!project) {
     throw new AppError(404, "Project not found", "PROJECT_NOT_FOUND");
+  }
 
   if (user.role === UserRole.CLIENT && project.clientId !== user.id) {
     throw new AppError(403, "Forbidden", "FORBIDDEN");
@@ -43,7 +44,6 @@ const validateAttachmentOwnerAccess = async (
     projectUpdateId?: string;
   },
 ) => {
-  // message
   if (payload.messageId) {
     const message = await prisma.message.findUnique({
       where: { id: payload.messageId },
@@ -65,7 +65,6 @@ const validateAttachmentOwnerAccess = async (
     return;
   }
 
-  // project
   if (payload.projectId) {
     const project = await prisma.project.findUnique({
       where: { id: payload.projectId },
@@ -79,7 +78,6 @@ const validateAttachmentOwnerAccess = async (
     return;
   }
 
-  // offer
   if (payload.offerId) {
     const offer = await prisma.offer.findUnique({
       where: { id: payload.offerId },
@@ -112,7 +110,6 @@ const validateAttachmentOwnerAccess = async (
     return;
   }
 
-  // project update
   if (payload.projectUpdateId) {
     const update = await prisma.projectUpdate.findUnique({
       where: { id: payload.projectUpdateId },
@@ -136,6 +133,14 @@ const validateAttachmentOwnerAccess = async (
 
     checkProjectAccess(user, update.project);
   }
+};
+
+const getAttachmentTypeFromMime = (mimeType?: string) => {
+  if (mimeType?.startsWith("image/")) {
+    return AttachmentType.IMAGE;
+  }
+
+  return AttachmentType.FILE;
 };
 
 const createAttachmentIntoDB = async (
@@ -165,12 +170,23 @@ const createAttachmentIntoDB = async (
     );
   }
 
+  if (!payload.url?.trim()) {
+    throw new AppError(400, "Attachment url is required", "URL_REQUIRED");
+  }
+
   await validateAttachmentOwnerAccess(user, payload);
 
   return prisma.attachment.create({
     data: {
-      type: payload.type,
-      url: payload.url,
+      type:
+        payload.type ||
+        getAttachmentTypeFromMime(payload.mimeType) ||
+        AttachmentType.FILE,
+      url: payload.url.trim(),
+      publicId: payload.publicId ?? null,
+      originalName: payload.originalName ?? null,
+      mimeType: payload.mimeType ?? null,
+      size: payload.size ?? null,
       uploadedById: user.id,
       messageId: payload.messageId ?? null,
       projectId: payload.projectId ?? null,
@@ -187,6 +203,34 @@ const createAttachmentIntoDB = async (
         },
       },
     },
+  });
+};
+
+const uploadAttachmentIntoDB = async (
+  user: TAuthUser,
+  file: Express.Multer.File | undefined,
+  payload: TCreateAttachmentPayload,
+) => {
+  if (!file) {
+    throw new AppError(400, "File is required", "FILE_REQUIRED");
+  }
+
+  const uploadedFile = file as Express.Multer.File & {
+    path?: string;
+    filename?: string;
+    mimetype: string;
+    size: number;
+    originalname: string;
+  };
+
+  return createAttachmentIntoDB(user, {
+    ...payload,
+    url: uploadedFile.path,
+    publicId: uploadedFile.filename,
+    originalName: uploadedFile.originalname,
+    mimeType: uploadedFile.mimetype,
+    size: uploadedFile.size,
+    type: getAttachmentTypeFromMime(uploadedFile.mimetype),
   });
 };
 
@@ -308,7 +352,9 @@ const deleteAttachmentFromDB = async (
   const attachment = await prisma.attachment.findUnique({
     where: { id: attachmentId },
     select: {
+      id: true,
       uploadedById: true,
+      publicId: true,
     },
   });
 
@@ -324,6 +370,12 @@ const deleteAttachmentFromDB = async (
     );
   }
 
+  if (attachment.publicId) {
+    await cloudinary.uploader.destroy(attachment.publicId, {
+      resource_type: "auto",
+    });
+  }
+
   return prisma.attachment.delete({
     where: { id: attachmentId },
   });
@@ -331,6 +383,7 @@ const deleteAttachmentFromDB = async (
 
 export const AttachmentService = {
   createAttachmentIntoDB,
+  uploadAttachmentIntoDB,
   getAttachmentsFromDB,
   getSingleAttachmentFromDB,
   deleteAttachmentFromDB,

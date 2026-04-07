@@ -1,8 +1,16 @@
 import { Router } from "express";
 import { AttachmentController } from "./attachment.controller";
 import authGuard from "../../middlewares/auth.guard";
+import { uploadAttachment } from "../../middlewares/upload/attachment.upload";
 
 const router = Router();
+
+router.post(
+  "/upload",
+  authGuard("ADMIN", "EMPLOYEE", "CLIENT"),
+  uploadAttachment.single("file"),
+  AttachmentController.uploadAttachment,
+);
 
 router.post(
   "/",
