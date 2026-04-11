@@ -1,13 +1,15 @@
-export type TConversationType = "ADMIN_CLIENT" | "ADMIN_EMPLOYEE";
+export type TConversationType = "ADMIN_CLIENT" | "ADMIN_EMPLOYEE" | "DIRECT";
 
 export type TCreateMessagePayload = {
-  projectId: string;
-  conversationType: TConversationType;
+  projectId?: string;
+  receiverId?: string;
   text: string;
-  type?: "TEXT" | "ISSUE" | "UPDATE" | "FEEDBACK" | "SYSTEM";
+  type?: string;
+  conversationType: TConversationType;
 };
 
-export type TGetMessagesQuery = {
-  projectId: string;
-  conversationType: TConversationType;
+// নতুন type যোগ করো
+export type TCreateDirectMessagePayload = {
+  text: string;
+  receiverId?: string;
 };

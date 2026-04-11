@@ -50,6 +50,7 @@ enum MessageType {
 enum MessageConversationType {
   ADMIN_CLIENT
   ADMIN_EMPLOYEE
+  DIRECT
 }
 
 enum AttachmentType {
@@ -101,6 +102,7 @@ model User {
   uploadedAttachments Attachment[]    @relation("UploadedByUser")
   notifications       Notification[]
   publicMessages      PublicMessage[] @relation("AdminPublicMessages")
+  receivedMessages    Message[]       @relation("ReceivedMessages")
 
   sessions Session[]
   accounts Account[]
@@ -198,8 +200,9 @@ model ProjectUpdate {
 
 model Message {
   id               String                  @id @default(cuid())
-  projectId        String
+  projectId        String?                          // optional করো
   senderId         String
+  receiverId       String?                          // নতুন field
   senderType       MessageSenderType
   conversationType MessageConversationType
   type             MessageType             @default(TEXT)
@@ -207,18 +210,19 @@ model Message {
   isRead           Boolean                 @default(false)
   createdAt        DateTime                @default(now())
 
-  project     Project      @relation(fields: [projectId], references: [id])
+  project     Project?     @relation(fields: [projectId], references: [id])  // optional করো
   sender      User         @relation(fields: [senderId], references: [id])
+  receiver    User?        @relation("ReceivedMessages", fields: [receiverId], references: [id])  // নতুন
   attachments Attachment[]
 
   @@index([projectId])
   @@index([senderId])
+  @@index([receiverId])                    // নতুন index
   @@index([isRead])
   @@index([conversationType])
   @@index([projectId, conversationType])
   @@map("messages")
 }
-
 model PublicMessage {
   id          String           @id @default(cuid())
   visitorId   String
