@@ -61,6 +61,13 @@ const validateAttachmentOwnerAccess = async (
       throw new AppError(404, "Message not found", "MESSAGE_NOT_FOUND");
     }
 
+    if (!message.project) {
+      if (message.senderId !== user.id && user.role !== UserRole.ADMIN) {
+        throw new AppError(403, "Forbidden", "FORBIDDEN");
+      }
+      return;
+    }
+
     checkProjectAccess(user, message.project);
     return;
   }
