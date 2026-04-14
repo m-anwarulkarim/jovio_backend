@@ -12,6 +12,8 @@ interface Env {
   CLOUDINARY_API_SECRET: string;
   JWT_ACCESS_SECRET: string;
   JWT_ACCESS_EXPIRES_IN: string;
+  STRIPE_SECRET_KEY: string;
+  STRIPE_WEBHOOK_SECRET: string;
 }
 
 // helper function (env validation)
@@ -35,4 +37,6 @@ export const env: Env = {
   CLOUDINARY_API_SECRET: requireEnv("CLOUDINARY_API_SECRET"),
   JWT_ACCESS_SECRET: requireEnv("JWT_ACCESS_SECRET"),
   JWT_ACCESS_EXPIRES_IN: requireEnv("JWT_ACCESS_EXPIRES_IN"),
+  STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
+  STRIPE_WEBHOOK_SECRET: requireEnv("STRIPE_WEBHOOK_SECRET"),
 };
