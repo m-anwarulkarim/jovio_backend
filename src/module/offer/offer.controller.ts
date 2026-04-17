@@ -57,9 +57,26 @@ const decideOffer = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const createCheckoutSession = catchAsync(
+  async (req: Request, res: Response) => {
+    const result = await OfferService.createCheckoutSessionForOffer(
+      req.user!,
+      req.params.id as string,
+    );
+
+    sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "Checkout session created successfully",
+      data: result,
+    });
+  },
+);
+
 export const OfferController = {
   createOffer,
   getOffers,
   getSingleOffer,
   decideOffer,
+  createCheckoutSession,
 };

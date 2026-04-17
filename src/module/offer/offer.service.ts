@@ -11,6 +11,8 @@ import type {
   TCreateOfferPayload,
   TOfferDecisionPayload,
 } from "./offer.interface";
+import { env } from "../../config";
+import { stripeClient } from "../../config/Stripe.config";
 
 type TAuthUser = {
   id: string;
@@ -329,9 +331,150 @@ const decideOfferIntoDB = async (
   return result;
 };
 
+const createCheckoutSessionForOffer = async (
+  user: TAuthUser,
+  offerId: string,
+) => {
+  if (!user?.id || user.role !== UserRole.CLIENT) {
+    throw new AppError(403, "Only client can pay for offer", "FORBIDDEN");
+  }
+
+  const offer = await prisma.offer.findUnique({
+    where: { id: offerId },
+    include: {
+      client: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          stripeCustomerId: true,
+        },
+      },
+      project: {
+        select: {
+          id: true,
+          projectId: true,
+        },
+      },
+    },
+  });
+
+  if (!offer) {
+    throw new AppError(404, "Offer not found", "OFFER_NOT_FOUND");
+  }
+
+  if (offer.clientId !== user.id) {
+    throw new AppError(403, "You cannot pay for this offer", "FORBIDDEN");
+  }
+
+  if (offer.status !== OfferStatus.ACCEPTED) {
+    throw new AppError(
+      400,
+      "Offer must be accepted before payment",
+      "OFFER_NOT_ACCEPTED",
+    );
+  }
+
+  // check if already paid
+  const existingPayment = await prisma.payment.findFirst({
+    where: {
+      offerId: offer.id,
+      status: "COMPLETED",
+    },
+  });
+
+  if (existingPayment) {
+    throw new AppError(400, "This offer is already paid", "ALREADY_PAID");
+  }
+
+  // check if there's a pending checkout session
+  const pendingPayment = await prisma.payment.findFirst({
+    where: {
+      offerId: offer.id,
+      status: "PENDING",
+    },
+  });
+
+  if (pendingPayment?.stripeSessionId) {
+    // retrieve existing session
+    try {
+      const existingSession = await stripeClient.checkout.sessions.retrieve(
+        pendingPayment.stripeSessionId,
+      );
+
+      if (existingSession.status === "open" && existingSession.url) {
+        return {
+          checkoutUrl: existingSession.url,
+          sessionId: existingSession.id,
+          payment: pendingPayment,
+        };
+      }
+    } catch {
+      // session expired or invalid, create new one
+    }
+  }
+
+  // create Stripe checkout session
+  const session = await stripeClient.checkout.sessions.create({
+    mode: "payment",
+    customer: offer.client.stripeCustomerId || undefined,
+    customer_email: !offer.client.stripeCustomerId
+      ? offer.client.email || undefined
+      : undefined,
+    line_items: [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: offer.title,
+            description: offer.description.slice(0, 500),
+          },
+          unit_amount: Math.round(Number(offer.price) * 100), // cents
+        },
+        quantity: 1,
+      },
+    ],
+    metadata: {
+      offerId: offer.id,
+      clientId: offer.clientId,
+      projectId: offer.project?.id || "",
+    },
+    success_url: `${env.FRONTEND_URL}/client/offers/${offer.id}?payment=success`,
+    cancel_url: `${env.FRONTEND_URL}/client/offers/${offer.id}?payment=cancelled`,
+  });
+
+  // create or update payment record
+  if (pendingPayment) {
+    await prisma.payment.update({
+      where: { id: pendingPayment.id },
+      data: {
+        stripeSessionId: session.id,
+      },
+    });
+  } else {
+    await prisma.payment.create({
+      data: {
+        offerId: offer.id,
+        projectId: offer.project?.id || null,
+        clientId: offer.clientId,
+        amount: offer.price,
+        currency: "usd",
+        status: "PENDING",
+        stripeSessionId: session.id,
+      },
+    });
+  }
+
+  return {
+    checkoutUrl: session.url,
+    sessionId: session.id,
+  };
+};
+
 export const OfferService = {
   createOfferIntoDB,
   getOffersFromDB,
   getSingleOfferFromDB,
   decideOfferIntoDB,
+  createCheckoutSessionForOffer,
 };

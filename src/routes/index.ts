@@ -7,6 +7,7 @@ import { ProjectUpdateRoutes } from "../module/projectUpdate/projectUpdate.route
 import { AttachmentRoutes } from "../module/attachment/attachment.route";
 import { NotificationRoutes } from "../module/notification/notification.route";
 import { PublicMessageRoutes } from "../module/publicMessage/publicMessage.route";
+import { PaymentWebhookRoutes } from "../module/payment/payment.route";
 const router = Router();
 
 const moduleRoutes = [
@@ -41,6 +42,10 @@ const moduleRoutes = [
   {
     path: "/public-messages",
     route: PublicMessageRoutes,
+  },
+  {
+    path: "/payment",
+    route: PaymentWebhookRoutes,
   },
 ];
 

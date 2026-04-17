@@ -16,4 +16,10 @@ router.get(
 
 router.patch("/:id/decision", authGuard("CLIENT"), OfferController.decideOffer);
 
+router.post(
+  "/:id/checkout",
+  authGuard("CLIENT"),
+  OfferController.createCheckoutSession,
+);
+
 export const OfferRoutes = router;
