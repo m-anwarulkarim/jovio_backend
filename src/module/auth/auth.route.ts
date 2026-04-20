@@ -1,7 +1,6 @@
 import { Router } from "express";
-import { toNodeHandler } from "better-auth/node";
 import { AuthController } from "./auth.controller";
-import { auth } from "../../lib/auth";
+
 import authGuard from "../../middlewares/auth.guard";
 
 const router = Router();
@@ -31,6 +30,6 @@ router.get(
 
 router.get("/users", authGuard("ADMIN"), AuthController.getAllUsers);
 // Better Auth built-in routes
-router.all("/better-auth/*splat", toNodeHandler(auth));
+// router.all("/better-auth/*splat", toNodeHandler(auth));
 
 export const AuthRoutes = router;

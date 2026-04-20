@@ -4,6 +4,8 @@ import { env } from "./config";
 import globalErrorHandler from "./middlewares/globalErrorHandler";
 import notFound from "./middlewares/notFound";
 import router from "./routes";
+import { toNodeHandler } from "better-auth/node";
+import { auth } from "./lib/auth";
 
 const app = express();
 app.use(
@@ -23,6 +25,8 @@ app.use(
     credentials: true,
   }),
 );
+
+app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.get("/", (_req, res) => {
   res.status(200).json({

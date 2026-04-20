@@ -14,6 +14,8 @@ interface Env {
   JWT_ACCESS_EXPIRES_IN: string;
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
 }
 
 // helper function (env validation)
@@ -39,4 +41,6 @@ export const env: Env = {
   JWT_ACCESS_EXPIRES_IN: requireEnv("JWT_ACCESS_EXPIRES_IN"),
   STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
   STRIPE_WEBHOOK_SECRET: requireEnv("STRIPE_WEBHOOK_SECRET"),
+  GOOGLE_CLIENT_ID: requireEnv("GOOGLE_CLIENT_ID"),
+  GOOGLE_CLIENT_SECRET: requireEnv("GOOGLE_CLIENT_SECRET"),
 };
