@@ -83,6 +83,7 @@ enum PaymentStatus {
   CANCELLED
 }
 
+
 model User {
   id       String   @id @default(cuid())
   name     String
@@ -107,11 +108,16 @@ model User {
 
   assignedProjects    Project[]       @relation("AssignedEmployeeProjects")
   projectUpdates      ProjectUpdate[]
-  sentMessages        Message[]
+
+  sentMessages     Message[] @relation("SentMessages")
+
+  receivedMessages Message[] @relation("ReceivedMessages")
+
   uploadedAttachments Attachment[]    @relation("UploadedByUser")
+
   notifications       Notification[]
+
   publicMessages      PublicMessage[] @relation("AdminPublicMessages")
-  receivedMessages    Message[]       @relation("ReceivedMessages")
 
   clientPayments Payment[] @relation("ClientPayments")
 
@@ -123,6 +129,8 @@ model User {
   @@index([role])
   @@map("users")
 }
+
+
 
 model Payment {
   id                String        @id @default(cuid())
@@ -150,6 +158,9 @@ model Payment {
   @@index([stripeSessionId])
   @@map("payments")
 }
+
+
+
 model Offer {
   id           String      @id @default(cuid())
   offerId      String      @unique
@@ -184,6 +195,7 @@ model Offer {
   @@index([status])
   @@map("offers")
 }
+
 
 model Project {
   id              String        @id @default(cuid())
@@ -222,6 +234,7 @@ model Project {
   @@map("projects")
 }
 
+
 model ProjectUpdate {
   id        String   @id @default(cuid())
   projectId String
@@ -240,6 +253,7 @@ model ProjectUpdate {
   @@map("project_updates")
 }
 
+
 model Message {
   id               String                  @id @default(cuid())
   projectId        String? // optional করো
@@ -253,8 +267,8 @@ model Message {
   createdAt        DateTime                @default(now())
 
   project     Project?     @relation(fields: [projectId], references: [id]) // optional করো
-  sender      User         @relation(fields: [senderId], references: [id])
-  receiver    User?        @relation("ReceivedMessages", fields: [receiverId], references: [id]) // নতুন
+  sender   User  @relation("SentMessages", fields: [senderId], references: [id])
+  receiver User? @relation("ReceivedMessages", fields: [receiverId], references: [id])
   attachments Attachment[]
 
   // নতুন index
@@ -266,6 +280,7 @@ model Message {
   @@index([projectId, conversationType])
   @@map("messages")
 }
+
 
 model PublicMessage {
   id         String           @id @default(cuid())
@@ -285,6 +300,7 @@ model PublicMessage {
   @@index([isRead])
   @@map("public_messages")
 }
+
 
 model Attachment {
   id           String         @id @default(cuid())
@@ -316,6 +332,7 @@ model Attachment {
   @@map("attachments")
 }
 
+
 model Notification {
   id        String           @id @default(cuid())
   userId    String
@@ -338,6 +355,198 @@ model Notification {
   @@map("notifications")
 }
 
+
+model Service {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  title           String
+  description     String
+  longDescription String?
+  icon            String?
+  image           String?
+  tag             String?
+  projects        String?
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  features     ServiceFeature[]
+  relatedPosts ServiceRelatedPost[]
+  packages     ServicePackage[]
+  featuredItems FeaturedItem[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@map("services")
+}
+
+
+model ServiceFeature {
+  id        String @id @default(cuid())
+  serviceId String
+  text      String
+  sortOrder Int    @default(0)
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])
+  @@map("service_features")
+}
+
+
+model ServicePackage {
+  id           String  @id @default(cuid())
+  serviceId    String
+  name         String
+  price        Decimal @db.Decimal(10, 2)
+  description  String
+  deliveryDays Int
+  revisions    Int
+  sortOrder    Int     @default(0)
+
+  service  Service          @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  features PackageFeature[]
+
+  @@index([serviceId])
+  @@map("service_packages")
+}
+
+
+model PackageFeature {
+  id        String @id @default(cuid())
+  packageId String
+  text      String
+  sortOrder Int    @default(0)
+
+  package ServicePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId])
+  @@map("package_features")
+}
+
+
+model ServiceRelatedPost {
+  id          String @id @default(cuid())
+  serviceId   String
+  title       String
+  description String
+  category    String
+  image       String
+  href        String
+  sortOrder   Int    @default(0)
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])
+  @@map("service_related_posts")
+}
+
+
+model FeaturedItem {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  serviceId        String?
+  title            String
+  shortDescription String
+  description      String
+  longDescription  String?  @db.Text
+  category         String
+  image            String
+  overview         String   @db.Text
+  challenge        String   @db.Text
+  solution         String   @db.Text
+  result           String   @db.Text
+  rating           Float?
+  reviews          Int?
+  isActive         Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  service      Service?              @relation(fields: [serviceId], references: [id])
+  features     FeaturedItemFeature[]
+  technologies FeaturedItemTech[]
+  packages     FeaturedItemPackage[]
+  images       FeaturedItemImage[]
+
+  @@index([serviceId])
+  @@index([slug])
+  @@index([isActive])
+  @@map("featured_items")
+}
+
+
+model FeaturedItemFeature {
+  id             String @id @default(cuid())
+  featuredItemId String
+  text           String
+  sortOrder      Int    @default(0)
+
+  featuredItem FeaturedItem @relation(fields: [featuredItemId], references: [id], onDelete: Cascade)
+
+  @@index([featuredItemId])
+  @@map("featured_item_features")
+}
+
+
+model FeaturedItemTech {
+  id             String @id @default(cuid())
+  featuredItemId String
+  name           String
+
+  featuredItem FeaturedItem @relation(fields: [featuredItemId], references: [id], onDelete: Cascade)
+
+  @@index([featuredItemId])
+  @@map("featured_item_techs")
+}
+
+
+model FeaturedItemPackage {
+  id             String  @id @default(cuid())
+  featuredItemId String
+  name           String
+  price          Decimal @db.Decimal(10, 2)
+  description    String
+  deliveryDays   Int
+  revisions      Int
+  sortOrder      Int     @default(0)
+
+  featuredItem FeaturedItem               @relation(fields: [featuredItemId], references: [id], onDelete: Cascade)
+  features     FeaturedItemPackageFeature[]
+
+  @@index([featuredItemId])
+  @@map("featured_item_packages")
+}
+
+
+model FeaturedItemPackageFeature {
+  id        String @id @default(cuid())
+  packageId String
+  text      String
+  sortOrder Int    @default(0)
+
+  package FeaturedItemPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId])
+  @@map("featured_item_package_features")
+}
+
+
+model FeaturedItemImage {
+  id             String @id @default(cuid())
+  featuredItemId String
+  url            String
+  sortOrder      Int    @default(0)
+
+  featuredItem FeaturedItem @relation(fields: [featuredItemId], references: [id], onDelete: Cascade)
+
+  @@index([featuredItemId])
+  @@map("featured_item_images")
+}
+
+
+
 model Session {
   id        String   @id
   expiresAt DateTime
@@ -353,6 +562,7 @@ model Session {
   @@index([userId])
   @@map("session")
 }
+
 
 model Account {
   id         String @id
@@ -373,7 +583,8 @@ model Account {
 
   @@index([userId])
   @@map("account")
-}
+} 
+
 
 model Verification {
   id         String   @id
