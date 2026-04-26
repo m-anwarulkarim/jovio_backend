@@ -9,6 +9,7 @@ import { NotificationRoutes } from "../module/notification/notification.route";
 import { PublicMessageRoutes } from "../module/publicMessage/publicMessage.route";
 import { PaymentWebhookRoutes } from "../module/payment/payment.route";
 import { ServiceRoutes } from "../module/service/Service.route";
+import { FeaturedItemRoutes } from "../module/Featureditem/Featureditem.route";
 const router = Router();
 
 const moduleRoutes = [
@@ -51,6 +52,10 @@ const moduleRoutes = [
   {
     path: "/services",
     route: ServiceRoutes,
+  },
+  {
+    path: "/featured-items",
+    route: FeaturedItemRoutes,
   },
 ];
 
