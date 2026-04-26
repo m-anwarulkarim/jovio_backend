@@ -8,6 +8,7 @@ import { AttachmentRoutes } from "../module/attachment/attachment.route";
 import { NotificationRoutes } from "../module/notification/notification.route";
 import { PublicMessageRoutes } from "../module/publicMessage/publicMessage.route";
 import { PaymentWebhookRoutes } from "../module/payment/payment.route";
+import { ServiceRoutes } from "../module/service/Service.route";
 const router = Router();
 
 const moduleRoutes = [
@@ -46,6 +47,10 @@ const moduleRoutes = [
   {
     path: "/payment",
     route: PaymentWebhookRoutes,
+  },
+  {
+    path: "/services",
+    route: ServiceRoutes,
   },
 ];
 
