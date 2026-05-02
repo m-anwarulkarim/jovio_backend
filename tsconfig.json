@@ -1,28 +1,20 @@
 {
   "compilerOptions": {
-    "lib": ["ESNext"],
-    "target": "ES2022",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "target": "ESNext",
     "module": "ESNext",
+    "lib": ["ESNext"],
     "moduleResolution": "bundler",
     "moduleDetection": "force",
-
-    "outDir": "dist",
-    "noEmit": false,
-
     "allowJs": true,
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-
-    "strict": false,
+    "verbatimModuleSyntax": true,
+    "strict": true,
     "skipLibCheck": true,
-
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": false,
-    "noImplicitOverride": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
+    "noEmit": false
+    // "ignoreDeprecations": "6.0"
   },
-  "include": ["src/**/*", "generated/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*", "generated/prisma/client/**/*"],
+  "exclude": ["node_modules"]
 }
