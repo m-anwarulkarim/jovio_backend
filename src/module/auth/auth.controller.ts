@@ -29,18 +29,12 @@ const forwardBetterAuthResponse = async (
       let cookieValue = value;
 
       if (isProduction) {
-        // ensure cross-origin cookie works
-        cookieValue = cookieValue
-          .replace(/SameSite=Lax/gi, "SameSite=None")
-          .replace(/SameSite=Strict/gi, "SameSite=None");
-
-        if (!/Secure/i.test(cookieValue)) {
-          cookieValue += "; Secure";
-        }
-
-        if (!/SameSite/i.test(cookieValue)) {
-          cookieValue += "; SameSite=None";
-        }
+        // remove existing SameSite regardless of case/format
+        cookieValue = cookieValue.replace(/;\s*SameSite=[^;]*/gi, "");
+        // remove existing Secure flag
+        cookieValue = cookieValue.replace(/;\s*Secure/gi, "");
+        // add correct values
+        cookieValue += "; SameSite=None; Secure";
       }
 
       res.append("set-cookie", cookieValue);
