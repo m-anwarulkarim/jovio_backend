@@ -54,4 +54,12 @@ export const auth = betterAuth({
       createCustomerOnSignUp: true,
     }),
   ],
+  advanced: {
+    cookiePrefix: "better-auth",
+    defaultCookieAttributes: {
+      secure: true,
+      sameSite: "none",
+      path: "/",
+    },
+  },
 });
