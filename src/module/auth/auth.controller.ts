@@ -22,9 +22,28 @@ const forwardBetterAuthResponse = async (
   authResponse: globalThis.Response,
   res: Response,
 ) => {
+  const isProduction = process.env.NODE_ENV === "production";
+
   authResponse.headers.forEach((value, key) => {
     if (key.toLowerCase() === "set-cookie") {
-      res.append("set-cookie", value);
+      let cookieValue = value;
+
+      if (isProduction) {
+        // ensure cross-origin cookie works
+        cookieValue = cookieValue
+          .replace(/SameSite=Lax/gi, "SameSite=None")
+          .replace(/SameSite=Strict/gi, "SameSite=None");
+
+        if (!/Secure/i.test(cookieValue)) {
+          cookieValue += "; Secure";
+        }
+
+        if (!/SameSite/i.test(cookieValue)) {
+          cookieValue += "; SameSite=None";
+        }
+      }
+
+      res.append("set-cookie", cookieValue);
     } else {
       res.setHeader(key, value);
     }
