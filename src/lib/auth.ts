@@ -55,11 +55,15 @@ export const auth = betterAuth({
     }),
   ],
   advanced: {
-    cookiePrefix: "better-auth",
+    crossSubDomainCookies: {
+      enabled: true,
+      domain: ".onrender.com", // অথবা তোমার custom domain
+    },
     defaultCookieAttributes: {
       secure: true,
-      sameSite: "none",
+      sameSite: "none" as const,
       path: "/",
+      httpOnly: true,
     },
   },
 });
