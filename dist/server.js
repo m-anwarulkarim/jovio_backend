@@ -290,7 +290,20 @@ var auth = betterAuth({
       stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
       createCustomerOnSignUp: true
     })
-  ]
+  ],
+  advanced: {
+    crossSubDomainCookies: {
+      enabled: true,
+      domain: ".onrender.com"
+      // অথবা তোমার custom domain
+    },
+    defaultCookieAttributes: {
+      secure: true,
+      sameSite: "none",
+      path: "/",
+      httpOnly: true
+    }
+  }
 });
 
 // src/module/auth/auth.service.ts
@@ -514,9 +527,16 @@ var buildHeaders = (req) => {
   return headers;
 };
 var forwardBetterAuthResponse = async (authResponse, res) => {
+  const isProduction = process.env.NODE_ENV === "production";
   authResponse.headers.forEach((value, key) => {
     if (key.toLowerCase() === "set-cookie") {
-      res.append("set-cookie", value);
+      let cookieValue = value;
+      if (isProduction) {
+        cookieValue = cookieValue.replace(/;\s*SameSite=[^;]*/gi, "");
+        cookieValue = cookieValue.replace(/;\s*Secure/gi, "");
+        cookieValue += "; SameSite=None; Secure";
+      }
+      res.append("set-cookie", cookieValue);
     } else {
       res.setHeader(key, value);
     }
