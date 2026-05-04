@@ -292,14 +292,9 @@ var auth = betterAuth({
     })
   ],
   advanced: {
-    crossSubDomainCookies: {
-      enabled: true,
-      domain: ".onrender.com"
-      // অথবা তোমার custom domain
-    },
     defaultCookieAttributes: {
-      secure: true,
-      sameSite: "none",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       path: "/",
       httpOnly: true
     }
@@ -19191,7 +19186,8 @@ app.set("trust proxy", true);
 app.use(
   cors({
     origin: env.FRONTEND_URL,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
     credentials: true
   })
 );
@@ -19199,7 +19195,7 @@ app.all("/api/auth/*splat", toNodeHandler(auth));
 app.get("/", (_req, res) => {
   res.status(200).json({
     success: true,
-    message: "\u{1F680} Server is running..."
+    message: "\u{1F680}Jovio Server is running..."
   });
 });
 app.use("/api/v1", routes_default);

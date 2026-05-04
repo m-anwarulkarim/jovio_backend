@@ -21,7 +21,8 @@ app.set("trust proxy", true);
 app.use(
   cors({
     origin: env.FRONTEND_URL,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
     credentials: true,
   }),
 );
@@ -31,7 +32,7 @@ app.all("/api/auth/*splat", toNodeHandler(auth));
 app.get("/", (_req, res) => {
   res.status(200).json({
     success: true,
-    message: "🚀 Server is running...",
+    message: "🚀Jovio Server is running...",
   });
 });
 
