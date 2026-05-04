@@ -57,8 +57,8 @@ export const auth = betterAuth({
   advanced: {
     crossSubDomainCookies: {
       enabled: true,
-      domain: ".onrender.com", // অথবা তোমার custom domain
     },
+
     defaultCookieAttributes: {
       secure: true,
       sameSite: "none" as const,
