@@ -91,9 +91,9 @@ const registerIntoDB = async (payload: TRegisterPayload, headers: Headers) => {
     throw new AppError(409, "Email already exists", "EMAIL_ALREADY_EXISTS");
   }
 
-  if (normalizedPhone && existingUser?.phone === normalizedPhone) {
-    throw new AppError(409, "Phone already exists", "PHONE_ALREADY_EXISTS");
-  }
+  // if (normalizedPhone && existingUser?.phone === normalizedPhone) {
+  //   throw new AppError(409, "Phone already exists", "PHONE_ALREADY_EXISTS");
+  // }
 
   const response = await auth.api.signUpEmail({
     headers,

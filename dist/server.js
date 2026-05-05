@@ -364,9 +364,6 @@ var registerIntoDB = async (payload, headers) => {
   if (existingUser?.email === normalizedEmail) {
     throw new AppError(409, "Email already exists", "EMAIL_ALREADY_EXISTS");
   }
-  if (normalizedPhone && existingUser?.phone === normalizedPhone) {
-    throw new AppError(409, "Phone already exists", "PHONE_ALREADY_EXISTS");
-  }
   const response = await auth.api.signUpEmail({
     headers,
     asResponse: true,
