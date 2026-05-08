@@ -6,6 +6,7 @@ import type {
   TGetAttachmentsQuery,
 } from "./attachment.interface";
 import cloudinary from "../../config/cloudinary";
+import { uploadToCloudinary } from "../../middlewares/upload/attachment.upload";
 
 type TAuthUser = {
   id: string;
@@ -222,25 +223,18 @@ const uploadAttachmentIntoDB = async (
     throw new AppError(400, "File is required", "FILE_REQUIRED");
   }
 
-  const uploadedFile = file as Express.Multer.File & {
-    path?: string;
-    filename?: string;
-    mimetype: string;
-    size: number;
-    originalname: string;
-  };
+  const uploaded = await uploadToCloudinary(file);
 
   return createAttachmentIntoDB(user, {
     ...payload,
-    url: uploadedFile.path,
-    publicId: uploadedFile.filename,
-    originalName: uploadedFile.originalname,
-    mimeType: uploadedFile.mimetype,
-    size: uploadedFile.size,
-    type: getAttachmentTypeFromMime(uploadedFile.mimetype),
+    url: uploaded.url,
+    publicId: uploaded.publicId,
+    originalName: file.originalname,
+    mimeType: file.mimetype,
+    size: file.size,
+    type: getAttachmentTypeFromMime(file.mimetype),
   });
 };
-
 const getAttachmentsFromDB = async (
   user: TAuthUser,
   query: TGetAttachmentsQuery,
